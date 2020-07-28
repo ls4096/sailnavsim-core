@@ -1,0 +1,42 @@
+.open sailnavsim.sql
+
+CREATE TABLE Boat(
+	name TEXT NOT NULL UNIQUE,
+	race TEXT NOT NULL,
+	desiredCourse REAL NOT NULL,
+	started INTEGER NOT NULL,
+	boatType INTEGER NOT NULL
+);
+
+CREATE TABLE BoatRace(
+	name TEXT NOT NULL UNIQUE,
+	startLat REAL NOT NULL,
+	startLon REAL NOT NULL
+);
+
+CREATE TABLE BoatLog(
+	boatName TEXT NOT NULL,
+	time INTEGER NOT NULL,
+	lat REAL NOT NULL,
+	lon REAL NOT NULL,
+	courseWater REAL NOT NULL,
+	speedWater REAL NOT NULL,
+	trackGround REAL NOT NULL,
+	speedGround REAL NOT NULL,
+	windDir REAL NOT NULL,
+	windSpeed REAL NOT NULL,
+	oceanCurrentDir REAL,
+	oceanCurrentSpeed REAL,
+	waterTemp REAL,
+	temp REAL NOT NULL,
+	dewpoint REAL NOT NULL,
+	pressure REAL NOT NULL,
+	cloud INTEGER NOT NULL,
+	visibility INTEGER NOT NULL,
+	precipRate REAL NOT NULL,
+	precipType INTEGER NOT NULL,
+	boatStatus INTEGER NOT NULL,
+	boatLocation INTEGER NOT NULL,
+	waterSalinity REAL,
+	oceanIce INTEGER
+);

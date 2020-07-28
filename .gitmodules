@@ -1,0 +1,3 @@
+[submodule "libproteus"]
+	path = libproteus
+	url = https://github.com/ls4096/libproteus
