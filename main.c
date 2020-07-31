@@ -21,6 +21,7 @@
 #include <unistd.h>
 #include <errno.h>
 
+#include <proteus/proteus.h>
 #include <proteus/GeoInfo.h>
 #include <proteus/Logging.h>
 #include <proteus/Ocean.h>
@@ -75,6 +76,7 @@ int main(int argc, char** argv)
 	}
 
 	ERRLOG(VERSION_STRING);
+	ERRLOG1("Using libProteus version %s", proteus_getVersionString());
 
 	proteus_Logging_setOutputFd(2); // Direct libproteus logging output to stderr.
 
@@ -274,7 +276,7 @@ static int parseArgs(int argc, char** argv)
 
 static void printVersionInfo()
 {
-	printf("%s\n", VERSION_STRING);
+	printf("%s, using libProteus version %s\n", VERSION_STRING, proteus_getVersionString());
 }
 
 static void handleCommand(Command* cmd, BoatEntry* boats)
