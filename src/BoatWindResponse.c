@@ -226,16 +226,49 @@ static const double SUPER_MAXI_SCALLYWAG_RESPONSE[] =
 	0.00							// here to prevent reading garbage in calculations below.
 };
 
+/**
+ * Wind response factor lookup table for the "140-foot Brigantine" sailing vessel
+ * Approximated from a polar plot for the STS Young Endeavour.
+ */
+static const double BRIGANTINE_140_RESPONSE[] =
+{
+//	1	2	4	8	12	16	24	m/s
+
+	-0.10,	-0.10,	-0.10,	-0.10,	-0.10,	-0.10,	-0.10,	// 0 deg
+	-0.08,	-0.08,	-0.08,	-0.08,	-0.08,	-0.08,	-0.08,	// 10 deg
+	-0.05,	-0.05,	-0.05,	-0.05,	-0.05,	-0.05,	-0.05,	// 20 deg
+	0.00,	0.00,	0.00,	0.00,	0.00,	0.00,	0.00,	// 30 deg
+	0.122,	0.122,	0.092,	0.073,	0.056,	0.042,	0.030,	// 40 deg
+	0.533,	0.533,	0.401,	0.321,	0.273,	0.247,	0.176,	// 50 deg
+	0.704,	0.704,	0.530,	0.424,	0.367,	0.319,	0.228,	// 60 deg
+	0.782,	0.782,	0.588,	0.471,	0.394,	0.331,	0.236,	// 70 deg
+	0.882,	0.882,	0.663,	0.531,	0.433,	0.350,	0.249,	// 80 deg
+	0.910,	0.910,	0.684,	0.547,	0.442,	0.356,	0.253,	// 90 deg
+	0.943,	0.943,	0.709,	0.567,	0.448,	0.360,	0.256,	// 100 deg
+	0.977,	0.977,	0.734,	0.588,	0.468,	0.372,	0.265,	// 110 deg
+	0.999,	0.999,	0.751,	0.601,	0.477,	0.378,	0.269,	// 120 deg
+	1.016,	1.016,	0.764,	0.611,	0.485,	0.389,	0.277,	// 130 deg
+	1.010,	1.010,	0.760,	0.608,	0.491,	0.417,	0.297,	// 140 deg
+	0.977,	0.977,	0.735,	0.588,	0.474,	0.406,	0.289,	// 150 deg
+	0.916,	0.916,	0.689,	0.551,	0.444,	0.381,	0.271,	// 160 deg
+	0.850,	0.850,	0.639,	0.511,	0.403,	0.336,	0.239,	// 170 deg
+	0.833,	0.833,	0.626,	0.501,	0.390,	0.322,	0.230,	// 180 deg
+
+	0.00,	0.00,	0.00,	0.00,	0.00,	0.00,	0.00,	// Values on these two lines are never used, but we add them
+	0.00							// here to prevent reading garbage in calculations below.
+};
+
 static const double* RESPONSES[] = {
 	SAILNAVSIM_CLASSIC_RESPONSE, // 0
 	SEASCAPE_18_RESPONSE, // 1
 	CONTESSA_25_RESPONSE, // 2
 	HANSE_385_RESPONSE, // 3
 	VOLVO_70_RESPONSE, // 4
-	SUPER_MAXI_SCALLYWAG_RESPONSE // 5
+	SUPER_MAXI_SCALLYWAG_RESPONSE, // 5
+	BRIGANTINE_140_RESPONSE // 6
 };
 
-static const int BOAT_TYPE_MAX = 5;
+static const int BOAT_TYPE_MAX = 6;
 
 
 double BoatWindResponse_getBoatSpeed(double windSpd, double angleFromWind, int boatType)
