@@ -99,7 +99,7 @@ static int startSql(const char* sqliteDbFilename)
 	}
 
 	static const char* SELECT_BOAT_STMT_STR = "SELECT name, race, desiredCourse, started, boatType FROM Boat;";
-	static const char* SELECT_BOATLOG_STMT_STR = "SELECT lat, lon, courseWater, speedWater, boatStatus, boatLocation FROM BoatLog WHERE boatName=? ORDER BY time DESC LIMIT 1;";
+	static const char* SELECT_BOATLOG_STMT_STR = "SELECT lat, lon, courseWater, speedWater, boatStatus, boatLocation, distanceTravelled FROM BoatLog WHERE boatName=? ORDER BY time DESC LIMIT 1;";
 
 	int src;
 
@@ -196,6 +196,7 @@ static BoatInitEntry* getNextSql()
 				double speed = sqlite3_column_double(_sqlStmtBoatLog, n++);
 				int boatStatus = sqlite3_column_int(_sqlStmtBoatLog, n++);
 				int boatLocation = sqlite3_column_int(_sqlStmtBoatLog, n++);
+				double distanceTravelled = sqlite3_column_double(_sqlStmtBoatLog, n++);
 
 				BoatInitEntry* entry = (BoatInitEntry*) malloc(sizeof(BoatInitEntry));
 
@@ -204,6 +205,7 @@ static BoatInitEntry* getNextSql()
 				boat->v.angle = course;
 				boat->v.mag = speed;
 				boat->desiredCourse = desiredCourse;
+				boat->distanceTravelled = distanceTravelled;
 				boat->stop = (boatStatus == 0 && started == 0);
 				boat->sailsDown = (boatLocation == 0 && started == 0);
 				boat->movingToSea = (boatLocation == 1 && started == 1);

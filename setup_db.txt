@@ -38,5 +38,6 @@ CREATE TABLE BoatLog(
 	boatStatus INTEGER NOT NULL,
 	boatLocation INTEGER NOT NULL,
 	waterSalinity REAL,
-	oceanIce INTEGER
+	oceanIce INTEGER,
+	distanceTravelled REAL NOT NULL
 );

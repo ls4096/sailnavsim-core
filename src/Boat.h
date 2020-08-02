@@ -29,6 +29,7 @@ typedef struct
 	proteus_GeoVec v;
 
 	double desiredCourse;
+	double distanceTravelled;
 
 	int boatType;
 

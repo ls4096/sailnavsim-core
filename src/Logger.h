@@ -43,6 +43,9 @@ typedef struct
 	// Boat velocity (over ground)
 	proteus_GeoVec boatVecGround;
 
+	// Boat distance travelled
+	double distanceTravelled;
+
 	// Weather data (including wind)
 	proteus_Weather wx;
 

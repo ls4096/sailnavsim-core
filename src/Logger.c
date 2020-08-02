@@ -157,6 +157,7 @@ void Logger_fillLogEntry(Boat* boat, const char* name, time_t t, LogEntry* log)
 	log->boatPos = boat->pos;
 	log->boatVecWater = boat->v;
 	log->boatVecGround = boatWithCurrent;
+	log->distanceTravelled = boat->distanceTravelled;
 	log->wx = wx;
 	log->oceanData = od;
 	log->oceanDataValid = odValid;
@@ -296,7 +297,7 @@ static void writeLogsCsv(LogEntry* logEntries, unsigned int count)
 		//  - ocean ice
 		if (log->oceanDataValid)
 		{
-			sprintf(logLine, "%lu,%.6f,%.6f,%.1f,%.3f,%.1f,%.3f,%.1f,%.3f,%.1f,%.3f,%.1f,%.1f,%.1f,%.1f,%.0f,%.0f,%.2f,%d,%d,%d,%.3f,%.0f\n",
+			sprintf(logLine, "%lu,%.6f,%.6f,%.1f,%.3f,%.1f,%.3f,%.1f,%.3f,%.1f,%.3f,%.1f,%.1f,%.1f,%.1f,%.0f,%.0f,%.2f,%d,%d,%d,%.3f,%.0f,%.1f\n",
 				log->time,
 				log->boatPos.lat,
 				log->boatPos.lon,
@@ -319,12 +320,13 @@ static void writeLogsCsv(LogEntry* logEntries, unsigned int count)
 				log->boatState,
 				log->locState,
 				log->oceanData.salinity,
-				log->oceanData.ice
+				log->oceanData.ice,
+				log->distanceTravelled
 				);
 		}
 		else
 		{
-			sprintf(logLine, "%lu,%.6f,%.6f,%.1f,%.3f,%.1f,%.3f,%.1f,%.3f,,,,%.1f,%.1f,%.1f,%.0f,%.0f,%.2f,%d,%d,%d,,\n",
+			sprintf(logLine, "%lu,%.6f,%.6f,%.1f,%.3f,%.1f,%.3f,%.1f,%.3f,,,,%.1f,%.1f,%.1f,%.0f,%.0f,%.2f,%d,%d,%d,,,%.1f\n",
 				log->time,
 				log->boatPos.lat,
 				log->boatPos.lon,
@@ -342,7 +344,8 @@ static void writeLogsCsv(LogEntry* logEntries, unsigned int count)
 				log->wx.prate,
 				log->wx.cond,
 				log->boatState,
-				log->locState
+				log->locState,
+				log->distanceTravelled
 				);
 		}
 
@@ -580,6 +583,12 @@ static void writeLogsSql(LogEntry* logEntries, unsigned int count)
 			}
 		}
 
+		if (SQLITE_OK != (src = sqlite3_bind_double(_sqlInsertStmt, ++n, log->distanceTravelled)))
+		{
+			ERRLOG1("Failed to bind distance travelled! sqlite rc=%d", src);
+			continue;
+		}
+
 		if (SQLITE_DONE != (src = sqlite3_step(_sqlInsertStmt)))
 		{
 			ERRLOG1("Failed to step insert! sqlite rc=%d", src);
@@ -638,7 +647,7 @@ static int setupSql(const char* sqliteDbFilename)
 		return -1;
 	}
 
-	static const char* INSERT_STMT_STR = "INSERT INTO BoatLog VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);";
+	static const char* INSERT_STMT_STR = "INSERT INTO BoatLog VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);";
 
 	if (SQLITE_OK != (src = sqlite3_prepare_v2(_sql, INSERT_STMT_STR, strlen(INSERT_STMT_STR) + 1, &_sqlInsertStmt, 0)))
 	{

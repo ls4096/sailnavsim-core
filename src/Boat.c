@@ -61,6 +61,7 @@ Boat* Boat_new(double lat, double lon, int boatType)
 	boat->v.mag = 0.0;
 
 	boat->desiredCourse = 0.0;
+	boat->distanceTravelled = 0.0;
 
 	boat->boatType = boatType;
 
@@ -164,6 +165,16 @@ void Boat_advance(Boat* b, double s)
 	{
 		od.current.mag *= s;
 		proteus_GeoPos_advance(&b->pos, &od.current);
+
+		// Distance travelled increases by the magnitude of the vector sum
+		// of the velocity over water and the ocean current.
+		proteus_GeoVec_add(&od.current, &v);
+		b->distanceTravelled += od.current.mag;
+	}
+	else
+	{
+		// Distance travelled increases by just the distance over water.
+		b->distanceTravelled += v.mag;
 	}
 
 	// Check if we're still in water.
