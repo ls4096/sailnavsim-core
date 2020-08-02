@@ -57,7 +57,7 @@
 #define SQLITE_DB_FILENAME "./sailnavsim.sql"
 
 
-static const char* VERSION_STRING = "SailNavSim version 1.0.0-dev (" __DATE__ " " __TIME__ ")";
+static const char* VERSION_STRING = "SailNavSim version 1.1.0 (" __DATE__ " " __TIME__ ")";
 
 
 static int parseArgs(int argc, char** argv);
