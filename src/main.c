@@ -57,7 +57,7 @@
 #define SQLITE_DB_FILENAME "./sailnavsim.sql"
 
 
-static const char* VERSION_STRING = "SailNavSim version 1.1.0 (" __DATE__ " " __TIME__ ")";
+static const char* VERSION_STRING = "SailNavSim version 1.2.0-dev (" __DATE__ " " __TIME__ ")";
 
 
 static int parseArgs(int argc, char** argv);
@@ -106,7 +106,7 @@ int main(int argc, char** argv)
 		return -1;
 	}
 
-	if (proteus_Weather_init(WX_DATA_DIR_PATH_F006, WX_DATA_DIR_PATH_F009) != 0)
+	if (proteus_Weather_init(PROTEUS_WEATHER_SOURCE_DATA_GRID_1P00, WX_DATA_DIR_PATH_F006, WX_DATA_DIR_PATH_F009) != 0)
 	{
 		ERRLOG("Failed to init weather!");
 		return -1;
