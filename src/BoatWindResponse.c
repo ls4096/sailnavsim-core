@@ -66,6 +66,10 @@ static const double SAILNAVSIM_CLASSIC_RESPONSE[] =
 	0.00							// here to prevent reading garbage in calculations below.
 };
 
+#define SAILNAVSIM_CLASSIC_COURSE_CHANGE_RATE (3.0)
+#define SAILNAVSIM_CLASSIC_BOAT_INERTIA (20.0)
+
+
 /**
  * Wind response factor lookup table for the "Seascape 18" sailing vessel
  * Derived and approximated from ORC data (sail number: NOR/NOR15672)
@@ -97,6 +101,10 @@ static const double SEASCAPE_18_RESPONSE[] =
 	0.00,	0.00,	0.00,	0.00,	0.00,	0.00,	0.00,	// Values on these two lines are never used, but we add them
 	0.00							// here to prevent reading garbage in calculations below.
 };
+
+#define SEASCAPE_18_COURSE_CHANGE_RATE (6.0)
+#define SEASCAPE_18_BOAT_INERTIA (12.0)
+
 
 /**
  * Wind response factor lookup table for the "Contessa 25" sailing vessel
@@ -130,6 +138,10 @@ static const double CONTESSA_25_RESPONSE[] =
 	0.00							// here to prevent reading garbage in calculations below.
 };
 
+#define CONTESSA_25_COURSE_CHANGE_RATE (3.0)
+#define CONTESSA_25_BOAT_INERTIA (20.0)
+
+
 /**
  * Wind response factor lookup table for the "Hanse 385" sailing vessel
  * Derived and approximated from ORC data (sail number: NOR/NOR14873)
@@ -161,6 +173,10 @@ static const double HANSE_385_RESPONSE[] =
 	0.00,	0.00,	0.00,	0.00,	0.00,	0.00,	0.00,	// Values on these two lines are never used, but we add them
 	0.00							// here to prevent reading garbage in calculations below.
 };
+
+#define HANSE_385_COURSE_CHANGE_RATE (2.75)
+#define HANSE_385_BOAT_INERTIA (22.5)
+
 
 /**
  * Wind response factor lookup table for the "Volvo 70" sailing vessel
@@ -194,6 +210,10 @@ static const double VOLVO_70_RESPONSE[] =
 	0.00							// here to prevent reading garbage in calculations below.
 };
 
+#define VOLVO_70_COURSE_CHANGE_RATE (2.25)
+#define VOLVO_70_BOAT_INERTIA (30.0)
+
+
 /**
  * Wind response factor lookup table for the "Super Maxi - Scallywag" sailing vessel
  * Derived and approximated from ORC data (sail number: AUS/HKG2276)
@@ -225,6 +245,10 @@ static const double SUPER_MAXI_SCALLYWAG_RESPONSE[] =
 	0.00,	0.00,	0.00,	0.00,	0.00,	0.00,	0.00,	// Values on these two lines are never used, but we add them
 	0.00							// here to prevent reading garbage in calculations below.
 };
+
+#define SUPER_MAXI_SCALLYWAG_COURSE_CHANGE_RATE (2.25)
+#define SUPER_MAXI_SCALLYWAG_BOAT_INERTIA (32.0)
+
 
 /**
  * Wind response factor lookup table for the "140-foot Brigantine" sailing vessel
@@ -258,7 +282,11 @@ static const double BRIGANTINE_140_RESPONSE[] =
 	0.00							// here to prevent reading garbage in calculations below.
 };
 
-static const double* RESPONSES[] = {
+#define BRIGANTINE_140_COURSE_CHANGE_RATE (1.25)
+#define BRIGANTINE_140_BOAT_INERTIA (45.0)
+
+
+static const double* WIND_RESPONSES[] = {
 	SAILNAVSIM_CLASSIC_RESPONSE, // 0
 	SEASCAPE_18_RESPONSE, // 1
 	CONTESSA_25_RESPONSE, // 2
@@ -266,6 +294,26 @@ static const double* RESPONSES[] = {
 	VOLVO_70_RESPONSE, // 4
 	SUPER_MAXI_SCALLYWAG_RESPONSE, // 5
 	BRIGANTINE_140_RESPONSE // 6
+};
+
+static const double COURSE_CHANGE_RATES[] = {
+	SAILNAVSIM_CLASSIC_COURSE_CHANGE_RATE, // 0
+	SEASCAPE_18_COURSE_CHANGE_RATE, // 1
+	CONTESSA_25_COURSE_CHANGE_RATE, // 2
+	HANSE_385_COURSE_CHANGE_RATE, // 3
+	VOLVO_70_COURSE_CHANGE_RATE, // 4
+	SUPER_MAXI_SCALLYWAG_COURSE_CHANGE_RATE, // 5
+	BRIGANTINE_140_COURSE_CHANGE_RATE // 6
+};
+
+static const double BOAT_INERTIAS[] = {
+	SAILNAVSIM_CLASSIC_BOAT_INERTIA, // 0
+	SEASCAPE_18_BOAT_INERTIA, // 1
+	CONTESSA_25_BOAT_INERTIA, // 2
+	HANSE_385_BOAT_INERTIA, // 3
+	VOLVO_70_BOAT_INERTIA, // 4
+	SUPER_MAXI_SCALLYWAG_BOAT_INERTIA, // 5
+	BRIGANTINE_140_BOAT_INERTIA // 6
 };
 
 static const int BOAT_TYPE_MAX = 6;
@@ -336,10 +384,32 @@ double BoatWindResponse_getBoatSpeed(double windSpd, double angleFromWind, int b
 
 	const int base = iAngle * 7 + iSpd;
 
-	const double* response = RESPONSES[boatType];
+	const double* response = WIND_RESPONSES[boatType];
 
 	const double r0 = response[base] * (1.0 - spdFrac) + response[base + 1] * spdFrac;
 	const double r1 = response[base + 7] * (1.0 - spdFrac) + response[base + 8] * spdFrac;
 
 	return windSpd * ((r0 * (1.0 - angleFrac)) + (r1 * angleFrac));
+}
+
+double BoatWindResponse_getCourseChangeRate(int boatType)
+{
+	if (boatType > BOAT_TYPE_MAX)
+	{
+		// Any boat type that isn't modeled always just gets a zero rate.
+		return 0.0;
+	}
+
+	return COURSE_CHANGE_RATES[boatType];
+}
+
+double BoatWindResponse_getSpeedChangeResponse(int boatType)
+{
+	if (boatType > BOAT_TYPE_MAX)
+	{
+		// Any boat type that isn't modeled just has very large inertia.
+		return 1.0e30;
+	}
+
+	return BOAT_INERTIAS[boatType];
 }

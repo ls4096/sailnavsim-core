@@ -29,9 +29,6 @@
 #include "BoatWindResponse.h"
 
 
-#define COURSE_CHANGE_DEG_PER_SEC (3.0)
-#define SPEED_CHANGE_RESPONSE (20.0)
-
 #define FORBIDDEN_LAT (0.0001)
 
 #define MOVE_TO_WATER_DISTANCE (100)
@@ -213,8 +210,9 @@ bool Boat_isHeadingTowardWater(Boat* b)
 static void updateCourse(Boat* b, double s)
 {
 	const double courseDiff = proteus_Compass_diff(b->v.angle, b->desiredCourse);
+	const double courseChangeRate = BoatWindResponse_getCourseChangeRate(b->boatType);
 
-	if (fabs(courseDiff) <= COURSE_CHANGE_DEG_PER_SEC * s)
+	if (fabs(courseDiff) <= courseChangeRate * s)
 	{
 		// Desired course is close enough to current course.
 		b->v.angle = b->desiredCourse;
@@ -225,12 +223,12 @@ static void updateCourse(Boat* b, double s)
 	if (courseDiff < 0.0 && courseDiff >= -179.0)
 	{
 		// Turn left.
-		b->v.angle -= (COURSE_CHANGE_DEG_PER_SEC * s);
+		b->v.angle -= (courseChangeRate * s);
 	}
 	else if (courseDiff > 0.0 && courseDiff <= 179.0)
 	{
 		// Turn right.
-		b->v.angle += (COURSE_CHANGE_DEG_PER_SEC * s);
+		b->v.angle += (courseChangeRate * s);
 	}
 	else
 	{
@@ -239,12 +237,12 @@ static void updateCourse(Boat* b, double s)
 		if (rand_r(&_randSeed) % 2 == 0)
 		{
 			// Turn left.
-			b->v.angle -= (COURSE_CHANGE_DEG_PER_SEC * s);
+			b->v.angle -= (courseChangeRate * s);
 		}
 		else
 		{
 			// Turn right.
-			b->v.angle += (COURSE_CHANGE_DEG_PER_SEC * s);
+			b->v.angle += (courseChangeRate * s);
 		}
 	}
 
@@ -268,7 +266,9 @@ static void updateVelocity(Boat* b, double s, bool odv, proteus_OceanData* od)
 	const double angleFromWind = proteus_Compass_diff(windVec->angle, b->v.angle);
 	const double spd = BoatWindResponse_getBoatSpeed(windVec->mag, angleFromWind, b->boatType) * oceanIceSpeedAdjustmentFactor(odv, od);
 
-	b->v.mag = ((SPEED_CHANGE_RESPONSE * b->v.mag) + (s * spd)) / (SPEED_CHANGE_RESPONSE + s);
+	const double speedChangeResponse = BoatWindResponse_getSpeedChangeResponse(b->boatType);
+
+	b->v.mag = ((speedChangeResponse * b->v.mag) + (s * spd)) / (speedChangeResponse + s);
 }
 
 static void stopBoat(Boat* b)

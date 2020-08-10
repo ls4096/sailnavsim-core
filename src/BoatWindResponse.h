@@ -19,4 +19,8 @@
 
 double BoatWindResponse_getBoatSpeed(double windSpd, double angleFromWind, int boatType);
 
+double BoatWindResponse_getCourseChangeRate(int boatType);
+
+double BoatWindResponse_getSpeedChangeResponse(int boatType);
+
 #endif // _BoatWindResponse_h_
