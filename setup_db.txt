@@ -5,7 +5,8 @@ CREATE TABLE Boat(
 	race TEXT NOT NULL,
 	desiredCourse REAL NOT NULL,
 	started INTEGER NOT NULL,
-	boatType INTEGER NOT NULL
+	boatType INTEGER NOT NULL,
+	isActive INTEGER NOT NULL
 );
 
 CREATE TABLE BoatRace(

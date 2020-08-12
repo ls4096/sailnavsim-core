@@ -98,7 +98,7 @@ static int startSql(const char* sqliteDbFilename)
 		fclose(fdb);
 	}
 
-	static const char* SELECT_BOAT_STMT_STR = "SELECT name, race, desiredCourse, started, boatType FROM Boat;";
+	static const char* SELECT_BOAT_STMT_STR = "SELECT name, race, desiredCourse, started, boatType FROM Boat WHERE isActive = 1;";
 	static const char* SELECT_BOATLOG_STMT_STR = "SELECT lat, lon, courseWater, speedWater, boatStatus, boatLocation, distanceTravelled FROM BoatLog WHERE boatName=? ORDER BY time DESC LIMIT 1;";
 
 	int src;
