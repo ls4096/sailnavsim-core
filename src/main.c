@@ -37,6 +37,8 @@
 
 #define ERRLOG_ID "Main"
 
+// How often to write boat logs
+// Minimum value: 2; a value less than 2 results in no boat logs being written
 #define ITERATIONS_PER_LOG (60)
 
 
@@ -143,7 +145,7 @@ int main(int argc, char** argv)
 	}
 
 
-	long iter = 0;
+	int lastIter = 1;
 
 	struct timespec nextT;
 	if (0 != clock_gettime(CLOCK_MONOTONIC, &nextT))
@@ -159,10 +161,14 @@ int main(int argc, char** argv)
 		unsigned int boatCount;
 		BoatEntry* boats = BoatRegistry_getAllBoats(&boatCount);
 
+		// Process all boats.
 		if (boatCount > 0)
 		{
 			// Log boat data once every ITERATIONS_PER_LOG iterations.
-			const bool doLog = (iter % ITERATIONS_PER_LOG == 0);
+			const int iter = (ITERATIONS_PER_LOG >= 2) ? (curTime % ITERATIONS_PER_LOG) : 1;
+			const bool doLog = (ITERATIONS_PER_LOG >= 2) ? (iter < lastIter) : false;
+
+			lastIter = iter;
 
 			LogEntry* logEntries = 0;
 			if (doLog)
@@ -176,7 +182,7 @@ int main(int argc, char** argv)
 			BoatEntry* e = boats;
 			while (e)
 			{
-				Boat_advance(e->boat, 1.0);
+				Boat_advance(e->boat, 1.0 /* seconds per iteration */);
 
 				if (doLog)
 				{
@@ -193,6 +199,7 @@ int main(int argc, char** argv)
 			}
 		}
 
+
 		// Handle pending commands.
 		unsigned int cmdCount = 0;
 		Command* cmd;
@@ -202,7 +209,8 @@ int main(int argc, char** argv)
 			cmdCount++;
 		}
 
-		iter++;
+
+		// Next iteration 1 second later
 		nextT.tv_sec++;
 
 		struct timespec tp;
