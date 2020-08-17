@@ -171,7 +171,7 @@ void Boat_advance(Boat* b, double s)
 	else
 	{
 		// Distance travelled increases by just the distance over water.
-		b->distanceTravelled += v.mag;
+		b->distanceTravelled += fabs(v.mag);
 	}
 
 	// Check if we're still in water.
