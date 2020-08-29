@@ -33,6 +33,7 @@
 #include "Command.h"
 #include "ErrLog.h"
 #include "Logger.h"
+#include "PerfUtils.h"
 
 
 #define ERRLOG_ID "Main"
@@ -59,7 +60,13 @@
 #define SQLITE_DB_FILENAME "./sailnavsim.sql"
 
 
-static const char* VERSION_STRING = "SailNavSim version 1.2.1 (" __DATE__ " " __TIME__ ")";
+#define PERF_TEST_ITERATIONS_WARMUP (20)
+#define PERF_TEST_ITERATIONS_MEASURE (80)
+#define PERF_TEST_MIN_BOAT_COUNT (100)
+#define PERF_TEST_MAX_BOAT_COUNT (51200)
+
+
+static const char* VERSION_STRING = "SailNavSim version 1.3.0-dev (" __DATE__ " " __TIME__ ")";
 
 
 static int parseArgs(int argc, char** argv);
@@ -68,19 +75,45 @@ static void printVersionInfo();
 static void handleCommand(Command* cmd, BoatEntry* boats);
 static void handleBoatRegistryCommand(Command* cmd);
 
+static void perfAddAndStartRandomBoat();
+
 
 int main(int argc, char** argv)
 {
 	int argsRc;
-	if ((argsRc = parseArgs(argc, argv)) != 0)
+	if ((argsRc = parseArgs(argc, argv)) < 0)
 	{
-		return ((argsRc > 0) ? 0 : argsRc);
+		return argsRc;
+	}
+
+	bool perfTest = false;
+
+	switch (argsRc)
+	{
+		case 1:
+			printVersionInfo();
+			return 0;
+		case 2:
+			perfTest = true;
+			break;
+		default:
+			break;
 	}
 
 	ERRLOG(VERSION_STRING);
 	ERRLOG1("Using libProteus version %s", proteus_getVersionString());
 
-	proteus_Logging_setOutputFd(2); // Direct libproteus logging output to stderr.
+	if (perfTest)
+	{
+		// Perf test run, so direct libproteus logging output to nowhere.
+		proteus_Logging_setOutputFd(-1);
+	}
+	else
+	{
+		// Normal run, so direct libproteus logging output to stderr.
+		proteus_Logging_setOutputFd(2);
+	}
+
 
 	int initRc;
 	if ((initRc = BoatInitParser_start(BOAT_INIT_DATA_FILENAME, SQLITE_DB_FILENAME)) == 0)
@@ -147,6 +180,10 @@ int main(int argc, char** argv)
 
 	int lastIter = 1;
 
+	int perfIter = 0;
+	long perfTotalNs = 0;
+	bool perfFirst = true;
+
 	struct timespec nextT;
 	if (0 != clock_gettime(CLOCK_MONOTONIC, &nextT))
 	{
@@ -166,7 +203,7 @@ int main(int argc, char** argv)
 		{
 			// Log boat data once every ITERATIONS_PER_LOG iterations.
 			const int iter = (ITERATIONS_PER_LOG >= 2) ? (curTime % ITERATIONS_PER_LOG) : 1;
-			const bool doLog = (ITERATIONS_PER_LOG >= 2) ? (iter < lastIter) : false;
+			const bool doLog = perfTest ? false : ((ITERATIONS_PER_LOG >= 2) ? (iter < lastIter) : false);
 
 			lastIter = iter;
 
@@ -200,12 +237,94 @@ int main(int argc, char** argv)
 		}
 
 
+		// If this is a performance test run, then handle things a bit differently, take some measurements, and loop back early.
+		if (perfTest)
+		{
+			unsigned int currentBoatCount;
+
+			if (perfIter == 0)
+			{
+				BoatRegistry_getAllBoats(&currentBoatCount);
+
+				if (perfFirst)
+				{
+					// First time running performance iterations, so start with the minimum
+					// necessary boat count for the first set of measurements.
+					for (int i = currentBoatCount; i < PERF_TEST_MIN_BOAT_COUNT; i++)
+					{
+						perfAddAndStartRandomBoat();
+					}
+
+					perfFirst = false;
+				}
+				else
+				{
+					if (currentBoatCount * 2 > PERF_TEST_MAX_BOAT_COUNT)
+					{
+						// We're done all performance measurement sets, so exit the loop.
+						break;
+					}
+
+					// Double the number of boats for the next set of measurements.
+					for (int i = currentBoatCount; i < currentBoatCount * 2; i++)
+					{
+						perfAddAndStartRandomBoat();
+					}
+				}
+			}
+
+			// Only measure after warm-up period.
+			if (perfIter >= PERF_TEST_ITERATIONS_WARMUP)
+			{
+				if (perfIter >= PERF_TEST_ITERATIONS_WARMUP + PERF_TEST_ITERATIONS_MEASURE)
+				{
+					// We're done this set, so print result and proceed to next set of iterations.
+					BoatRegistry_getAllBoats(&currentBoatCount);
+
+					long bips = PERF_TEST_ITERATIONS_MEASURE * currentBoatCount * 1000000000L / perfTotalNs;
+
+					printf("Boat count %d...Boat iterations per second: %ld\n", currentBoatCount, bips);
+
+					perfIter = -1;
+					perfTotalNs = 0;
+				}
+				else
+				{
+					// Perform time measurement and add to running time total.
+					struct timespec t2;
+					if (0 != clock_gettime(CLOCK_MONOTONIC, &t2))
+					{
+						ERRLOG1("clock_gettime failed! errno=%d", errno);
+						return -1;
+					}
+
+					const long nsTaken = (t2.tv_nsec - nextT.tv_nsec) + 1000000000L * (t2.tv_sec - nextT.tv_sec);
+					perfTotalNs += nsTaken;
+				}
+			}
+
+
+			if (0 != clock_gettime(CLOCK_MONOTONIC, &nextT))
+			{
+				ERRLOG1("clock_gettime failed! errno=%d", errno);
+				return -1;
+			}
+
+			perfIter++;
+			continue;
+		} // End of performance testing control block.
+
+
 		// Handle pending commands.
 		unsigned int cmdCount = 0;
 		Command* cmd;
 		while ((cmd = Command_next()))
 		{
 			handleCommand(cmd, boats);
+
+			free(cmd->name);
+			free(cmd);
+
 			cmdCount++;
 		}
 
@@ -257,29 +376,32 @@ static int parseArgs(int argc, char** argv)
 	{
 		return 0;
 	}
-	else if (argc == 2)
+
+	bool doPerf = false;
+
+	for (int i = 1; i < argc; i++)
 	{
-		if (0 == strcmp("-v", argv[1]))
+		if (0 == strcmp("-v", argv[i]) || 0 == strcmp("--version", argv[i]))
 		{
-			printVersionInfo();
 			return 1;
 		}
-		else if (0 == strcmp("--version", argv[1]))
+		else if (0 == strcmp("--perf", argv[i]))
 		{
-			printVersionInfo();
-			return 1;
+			doPerf = true;
 		}
 		else
 		{
-			printf("Invalid args.\n");
+			printf("Invalid argument: %s\n", argv[i]);
 			return -1;
 		}
 	}
-	else
+
+	if (doPerf)
 	{
-		printf("Invalid args.\n");
-		return -1;
+		return 2;
 	}
+
+	return 0;
 }
 
 static void printVersionInfo()
@@ -295,7 +417,7 @@ static void handleCommand(Command* cmd, BoatEntry* boats)
 		case COMMAND_ACTION_ADD_BOAT:
 		case COMMAND_ACTION_REMOVE_BOAT:
 			handleBoatRegistryCommand(cmd);
-			goto end;
+			return;
 	}
 
 	Boat* foundBoat = 0;
@@ -313,7 +435,7 @@ static void handleCommand(Command* cmd, BoatEntry* boats)
 
 	if (!foundBoat)
 	{
-		goto end;
+		return;
 	}
 
 	switch (cmd->action)
@@ -333,10 +455,6 @@ static void handleCommand(Command* cmd, BoatEntry* boats)
 			foundBoat->desiredCourse = cmd->values[0].i;
 			break;
 	}
-
-end:
-	free(cmd->name);
-	free(cmd);
 }
 
 static void handleBoatRegistryCommand(Command* cmd)
@@ -364,4 +482,41 @@ static void handleBoatRegistryCommand(Command* cmd)
 			break;
 		}
 	}
+}
+
+static void perfAddAndStartRandomBoat()
+{
+	Command cmd;
+
+	cmd.name = PerfUtils_getRandomName();
+	cmd.next = 0;
+
+
+	// Add boat.
+	cmd.action = COMMAND_ACTION_ADD_BOAT;
+	cmd.values[0].d = PerfUtils_getRandomLat();
+	cmd.values[1].d = PerfUtils_getRandomLon();
+	cmd.values[2].i = PerfUtils_getRandomBoatType();
+
+	handleCommand(&cmd, 0);
+
+
+	// Get up-to-date BoatEntry to use.
+	BoatEntry* boats = BoatRegistry_getAllBoats(0);
+
+
+	// Set course.
+	cmd.action = COMMAND_ACTION_COURSE;
+	cmd.values[0].i = PerfUtils_getRandomCourse();
+
+	handleCommand(&cmd, boats);
+
+
+	// Start boat.
+	cmd.action = COMMAND_ACTION_START;
+
+	handleCommand(&cmd, boats);
+
+
+	free(cmd.name);
 }

@@ -8,6 +8,7 @@ OBJS = \
 	src/Command.o \
 	src/ErrLog.o \
 	src/Logger.o \
+	src/PerfUtils.o \
 	src/main.o
 
 src/%.o: src/%.c
