@@ -23,6 +23,9 @@
 #include <proteus/GeoPos.h>
 
 
+#define BOAT_FLAG_TAKES_DAMAGE (0x01)
+
+
 typedef struct
 {
 	proteus_GeoPos pos;
@@ -30,8 +33,10 @@ typedef struct
 
 	double desiredCourse;
 	double distanceTravelled;
+	double damage;
 
 	int boatType;
+	int boatFlags;
 
 	bool stop;
 	bool sailsDown;
@@ -43,7 +48,7 @@ typedef struct
 
 int Boat_init();
 
-Boat* Boat_new(double lat, double lon, int boatType);
+Boat* Boat_new(double lat, double lon, int boatType, int boatFlags);
 void Boat_advance(Boat* b, double s);
 bool Boat_isHeadingTowardWater(Boat* b);
 

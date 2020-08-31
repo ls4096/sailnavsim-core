@@ -38,7 +38,7 @@ static sqlite3_stmt* _sqlStmtBoatLog;
 
 static int startFile(const char* boatInitFilename);
 static BoatInitEntry* getNextFile();
-static int readBoatInitData(char* s, char** name, double* lat, double* lon, int* type);
+static int readBoatInitData(char* s, char** name, double* lat, double* lon, int* type, int* flags);
 
 static FILE* _fp;
 
@@ -98,8 +98,8 @@ static int startSql(const char* sqliteDbFilename)
 		fclose(fdb);
 	}
 
-	static const char* SELECT_BOAT_STMT_STR = "SELECT name, race, desiredCourse, started, boatType FROM Boat WHERE isActive = 1;";
-	static const char* SELECT_BOATLOG_STMT_STR = "SELECT lat, lon, courseWater, speedWater, boatStatus, boatLocation, distanceTravelled FROM BoatLog WHERE boatName=? ORDER BY time DESC LIMIT 1;";
+	static const char* SELECT_BOAT_STMT_STR = "SELECT name, race, desiredCourse, started, boatType, boatFlags FROM Boat WHERE isActive = 1;";
+	static const char* SELECT_BOATLOG_STMT_STR = "SELECT lat, lon, courseWater, speedWater, boatStatus, boatLocation, distanceTravelled, damage FROM BoatLog WHERE boatName=? ORDER BY time DESC LIMIT 1;";
 
 	int src;
 
@@ -170,6 +170,7 @@ static BoatInitEntry* getNextSql()
 			double desiredCourse = sqlite3_column_double(_sqlStmtBoat, 2);
 			int started = sqlite3_column_double(_sqlStmtBoat, 3);
 			int boatType = sqlite3_column_double(_sqlStmtBoat, 4);
+			int boatFlags = sqlite3_column_double(_sqlStmtBoat, 5);
 
 			src = sqlite3_reset(_sqlStmtBoatLog);
 			if (src != SQLITE_OK)
@@ -197,15 +198,17 @@ static BoatInitEntry* getNextSql()
 				int boatStatus = sqlite3_column_int(_sqlStmtBoatLog, n++);
 				int boatLocation = sqlite3_column_int(_sqlStmtBoatLog, n++);
 				double distanceTravelled = sqlite3_column_double(_sqlStmtBoatLog, n++);
+				double damage = sqlite3_column_double(_sqlStmtBoatLog, n++);
 
 				BoatInitEntry* entry = (BoatInitEntry*) malloc(sizeof(BoatInitEntry));
 
-				Boat* boat = Boat_new(lat, lon, boatType);
+				Boat* boat = Boat_new(lat, lon, boatType, boatFlags);
 
 				boat->v.angle = course;
 				boat->v.mag = speed;
 				boat->desiredCourse = desiredCourse;
 				boat->distanceTravelled = distanceTravelled;
+				boat->damage = damage;
 				boat->stop = (boatStatus == 0 && started == 0);
 				boat->sailsDown = (boatLocation == 0 && started == 0);
 				boat->movingToSea = (boatLocation == 1 && started == 1);
@@ -255,7 +258,7 @@ static BoatInitEntry* getNextSql()
 
 				entry = (BoatInitEntry*) malloc(sizeof(BoatInitEntry));
 
-				Boat* boat = Boat_new(lat, lon, boatType);
+				Boat* boat = Boat_new(lat, lon, boatType, boatFlags);
 
 				entry->boat = boat;
 				entry->name = strdup(boatName);
@@ -312,18 +315,18 @@ static BoatInitEntry* getNextFile()
 
 	char* name;
 	double lat, lon;
-	int type;
+	int type, flags;
 
 	if (fgets(buf, 1024, _fp) == buf)
 	{
-		if (readBoatInitData(buf, &name, &lat, &lon, &type) != 0)
+		if (readBoatInitData(buf, &name, &lat, &lon, &type, &flags) != 0)
 		{
 			goto done;
 		}
 
 		BoatInitEntry* entry = (BoatInitEntry*) malloc(sizeof(BoatInitEntry));
 
-		Boat* boat = Boat_new(lat, lon, type);
+		Boat* boat = Boat_new(lat, lon, type, flags);
 
 		entry->boat = boat;
 		entry->name = name;
@@ -338,7 +341,7 @@ done:
 	return 0;
 }
 
-static int readBoatInitData(char* s, char** name, double* lat, double* lon, int* type)
+static int readBoatInitData(char* s, char** name, double* lat, double* lon, int* type, int* flags)
 {
 	int rc = 0;
 
@@ -374,6 +377,13 @@ static int readBoatInitData(char* s, char** name, double* lat, double* lon, int*
 		goto fail;
 	}
 	*type = atoi(w);
+
+	if ((w = strtok_r(0, ",", &t)) == 0)
+	{
+		rc = -5;
+		goto fail;
+	}
+	*flags = atoi(w);
 
 	return rc;
 

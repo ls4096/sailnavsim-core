@@ -35,9 +35,11 @@
 
 
 static void updateCourse(Boat* b, double s);
-static void updateVelocity(Boat* b, double s, bool odv, proteus_OceanData* od);
+static void updateVelocity(Boat* b, double s, const proteus_Weather* wx, bool odv, const proteus_OceanData* od);
+static void updateDamage(Boat* b, double windGust, bool takeDamage);
 static void stopBoat(Boat* b);
-static double oceanIceSpeedAdjustmentFactor(bool valid, proteus_OceanData* od);
+static double oceanIceSpeedAdjustmentFactor(bool valid, const proteus_OceanData* od);
+static double boatDamageSpeedAdjustmentFactor(const Boat* b);
 
 static unsigned int _randSeed = 0;
 
@@ -48,7 +50,7 @@ int Boat_init()
 	return 0;
 }
 
-Boat* Boat_new(double lat, double lon, int boatType)
+Boat* Boat_new(double lat, double lon, int boatType, int boatFlags)
 {
 	Boat* boat = (Boat*) malloc(sizeof(Boat));
 
@@ -59,8 +61,10 @@ Boat* Boat_new(double lat, double lon, int boatType)
 
 	boat->desiredCourse = 0.0;
 	boat->distanceTravelled = 0.0;
+	boat->damage = 0.0;
 
 	boat->boatType = boatType;
+	boat->boatFlags = boatFlags;
 
 	boat->stop = true;
 	boat->sailsDown = false;
@@ -76,6 +80,13 @@ void Boat_advance(Boat* b, double s)
 	if (b->stop)
 	{
 		// Stopped, so nowhere to go.
+
+		if (b->damage > 0.0)
+		{
+			// Possibly fix some boat damage.
+			updateDamage(b, -1.0, false);
+		}
+
 		return;
 	}
 
@@ -127,12 +138,12 @@ void Boat_advance(Boat* b, double s)
 	proteus_OceanData od;
 	bool oceanDataValid = proteus_Ocean_get(&b->pos, &od);
 
+	proteus_Weather wx;
+	proteus_Weather_get(&b->pos, &wx, true);
+
 	if (b->sailsDown)
 	{
 		// Sails down, so velocity vector over water is 1/10 of wind.
-		proteus_Weather wx;
-		proteus_Weather_get(&b->pos, &wx, true);
-
 		proteus_GeoVec* windVec = &wx.wind;
 
 		b->v.angle = windVec->angle + 180.0;
@@ -141,15 +152,22 @@ void Boat_advance(Boat* b, double s)
 			b->v.angle -= 360.0;
 		}
 
+		// With sails down, we do not take any additional damage, but we can still repair it.
+		updateDamage(b, wx.windGust, false);
+
+		// NOTE: While sails are down, we intentionally do not take into account the boat damage speed adjustment factor.
 		b->v.mag = windVec->mag * 0.1 * oceanIceSpeedAdjustmentFactor(oceanDataValid, &od);
 	}
 	else
 	{
+		// Update boat damage.
+		updateDamage(b, wx.windGust, true);
+
 		// Update course, if necessary.
 		updateCourse(b, s);
 
 		// Update boat velocity.
-		updateVelocity(b, s, oceanDataValid, &od);
+		updateVelocity(b, s, &wx, oceanDataValid, &od);
 	}
 
 	// Advance position.
@@ -256,19 +274,67 @@ static void updateCourse(Boat* b, double s)
 	}
 }
 
-static void updateVelocity(Boat* b, double s, bool odv, proteus_OceanData* od)
+static void updateVelocity(Boat* b, double s, const proteus_Weather* wx, bool odv, const proteus_OceanData* od)
 {
-	proteus_Weather wx;
-	proteus_Weather_get(&b->pos, &wx, true);
-
-	proteus_GeoVec* windVec = &wx.wind;
+	const proteus_GeoVec* windVec = &wx->wind;
 
 	const double angleFromWind = proteus_Compass_diff(windVec->angle, b->v.angle);
-	const double spd = BoatWindResponse_getBoatSpeed(windVec->mag, angleFromWind, b->boatType) * oceanIceSpeedAdjustmentFactor(odv, od);
+
+	const double spd = BoatWindResponse_getBoatSpeed(windVec->mag, angleFromWind, b->boatType) *
+		oceanIceSpeedAdjustmentFactor(odv, od) *
+		boatDamageSpeedAdjustmentFactor(b);
 
 	const double speedChangeResponse = BoatWindResponse_getSpeedChangeResponse(b->boatType);
 
 	b->v.mag = ((speedChangeResponse * b->v.mag) + (s * spd)) / (speedChangeResponse + s);
+}
+
+#define KNOTS_IN_M_PER_S (1.943844)
+
+#define DAMAGE_INC_THRESH (45.0 / KNOTS_IN_M_PER_S)
+#define DAMAGE_DEC_THRESH (25.0 / KNOTS_IN_M_PER_S)
+
+#define DAMAGE_TAKE_FACTOR (0.25 * KNOTS_IN_M_PER_S * KNOTS_IN_M_PER_S / 3600.0) // 0.25% (to max damage) per hour per knot squared above threshold.
+#define DAMAGE_REPAIR_FACTOR (0.25 * KNOTS_IN_M_PER_S / 3600.0) // 0.25% per hour per knot below threshold.
+
+static void updateDamage(Boat* b, double windGust, bool takeDamage)
+{
+	if ((b->boatFlags & BOAT_FLAG_TAKES_DAMAGE) == 0)
+	{
+		return;
+	}
+
+	if (windGust < 0.0)
+	{
+		proteus_Weather wx;
+		proteus_Weather_get(&b->pos, &wx, true);
+
+		windGust = wx.windGust;
+	}
+
+	if (windGust < DAMAGE_DEC_THRESH)
+	{
+		if (b->damage > 0.0)
+		{
+			// Repair damage.
+			b->damage -= ((DAMAGE_DEC_THRESH - windGust) * DAMAGE_REPAIR_FACTOR);
+			if (b->damage < 0.0)
+			{
+				b->damage = 0.0;
+			}
+		}
+	}
+	else if (windGust > DAMAGE_INC_THRESH && takeDamage && b->damage < 100.0)
+	{
+		// Take damage.
+		const double threshDiff = windGust - DAMAGE_INC_THRESH;
+
+		b->damage += ((100.0 - b->damage) * (threshDiff * threshDiff * DAMAGE_TAKE_FACTOR * 0.01));
+		if (b->damage > 100.0)
+		{
+			b->damage = 100.0;
+		}
+	}
 }
 
 static void stopBoat(Boat* b)
@@ -277,7 +343,12 @@ static void stopBoat(Boat* b)
 	b->v.mag = 0.0;
 }
 
-static double oceanIceSpeedAdjustmentFactor(bool valid, proteus_OceanData* od)
+static double oceanIceSpeedAdjustmentFactor(bool valid, const proteus_OceanData* od)
 {
 	return (valid ? (1.0 - (od->ice / 100.0f)) : 1.0);
+}
+
+static double boatDamageSpeedAdjustmentFactor(const Boat* b)
+{
+	return ((b->boatFlags & BOAT_FLAG_TAKES_DAMAGE) ? (1.0 - b->damage * 0.01) : 1.0);
 }

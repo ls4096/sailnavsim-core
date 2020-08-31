@@ -56,6 +56,11 @@ int PerfUtils_getRandomBoatType()
 	return getRandInt(6);
 }
 
+int PerfUtils_getRandomBoatFlags()
+{
+	return getRandInt(1);
+}
+
 int PerfUtils_getRandomCourse()
 {
 	return getRandInt(360);

@@ -22,6 +22,7 @@ char* PerfUtils_getRandomName();
 double PerfUtils_getRandomLat();
 double PerfUtils_getRandomLon();
 int PerfUtils_getRandomBoatType();
+int PerfUtils_getRandomBoatFlags();
 int PerfUtils_getRandomCourse();
 
 

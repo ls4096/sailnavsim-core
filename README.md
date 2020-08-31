@@ -27,7 +27,7 @@ A global sailing navigation simulator, using real-world geographic information a
 
 ### Add boat
 
-`echo "TestBoat,add,44.0,-63.0,0" > cmds`
+`echo "TestBoat,add,44.0,-63.0,0,0" > cmds`
 
 ### Set course and start boat
 

@@ -6,7 +6,8 @@ CREATE TABLE Boat(
 	desiredCourse REAL NOT NULL,
 	started INTEGER NOT NULL,
 	boatType INTEGER NOT NULL,
-	isActive INTEGER NOT NULL
+	isActive INTEGER NOT NULL,
+	boatFlags INTEGER NOT NULL
 );
 
 CREATE TABLE BoatRace(
@@ -40,5 +41,7 @@ CREATE TABLE BoatLog(
 	boatLocation INTEGER NOT NULL,
 	waterSalinity REAL,
 	oceanIce INTEGER,
-	distanceTravelled REAL NOT NULL
+	distanceTravelled REAL NOT NULL,
+	damage REAL NOT NULL,
+	windGust REAL NOT NULL
 );

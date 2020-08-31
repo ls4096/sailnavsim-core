@@ -42,10 +42,10 @@ static const char* CMD_ACTION_STR_REMOVE_BOAT = "remove";
 #define CMD_VAL_INT (1)
 #define CMD_VAL_DOUBLE (2)
 
-static const uint8_t CMD_ACTION_VALS_NONE[3] = { CMD_VAL_NONE, CMD_VAL_NONE, CMD_VAL_NONE };
+static const uint8_t CMD_ACTION_VALS_NONE[COMMAND_MAX_ARG_COUNT] = { CMD_VAL_NONE, CMD_VAL_NONE, CMD_VAL_NONE, CMD_VAL_NONE };
 
-static const uint8_t CMD_ACTION_COURSE_VALS[3] = { CMD_VAL_INT, CMD_VAL_NONE, CMD_VAL_NONE };
-static const uint8_t CMD_ACTION_ADD_BOAT_VALS[3] = { CMD_VAL_DOUBLE, CMD_VAL_DOUBLE, CMD_VAL_INT };
+static const uint8_t CMD_ACTION_COURSE_VALS[COMMAND_MAX_ARG_COUNT] = { CMD_VAL_INT, CMD_VAL_NONE, CMD_VAL_NONE, CMD_VAL_NONE };
+static const uint8_t CMD_ACTION_ADD_BOAT_VALS[COMMAND_MAX_ARG_COUNT] = { CMD_VAL_DOUBLE, CMD_VAL_DOUBLE, CMD_VAL_INT, CMD_VAL_INT };
 
 
 #define BOAT_TYPE_MAX_VALUE (6)
@@ -56,7 +56,7 @@ static void handleCmd(char* cmdStr);
 
 static int getAction(const char* s);
 static const uint8_t* getActionExpectedValueTypes(int action);
-static bool areValuesValidForAction(int action, CommandValue values[3]);
+static bool areValuesValidForAction(int action, CommandValue values[COMMAND_MAX_ARG_COUNT]);
 static void queueCmd(Command* cmd);
 
 
@@ -157,7 +157,7 @@ static void handleCmd(char* cmdStr)
 
 	const uint8_t* vals = getActionExpectedValueTypes(cmd->action);
 
-	for (int i = 0; i < 3; i++)
+	for (int i = 0; i < COMMAND_MAX_ARG_COUNT; i++)
 	{
 		switch (vals[i])
 		{
@@ -242,7 +242,7 @@ static const uint8_t* getActionExpectedValueTypes(int action)
 	return CMD_ACTION_VALS_NONE;
 }
 
-static bool areValuesValidForAction(int action, CommandValue values[3])
+static bool areValuesValidForAction(int action, CommandValue values[COMMAND_MAX_ARG_COUNT])
 {
 	switch (action)
 	{
@@ -252,9 +252,10 @@ static bool areValuesValidForAction(int action, CommandValue values[3])
 		}
 		case COMMAND_ACTION_ADD_BOAT:
 		{
-			return (values[0].d > -90.0 && values[0].d < 90.0 && \
-					values[1].d >= -180.0 && values[1].d <= 180.0 && \
-					values[2].i >= 0 && values[2].i <= BOAT_TYPE_MAX_VALUE);
+			return (values[0].d > -90.0 && values[0].d < 90.0 &&
+					values[1].d >= -180.0 && values[1].d <= 180.0 &&
+					values[2].i >= 0 && values[2].i <= BOAT_TYPE_MAX_VALUE &&
+					values[3].i >= 0 && values[3].i <= 1);
 		}
 	}
 

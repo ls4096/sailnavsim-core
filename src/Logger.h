@@ -46,6 +46,9 @@ typedef struct
 	// Boat distance travelled
 	double distanceTravelled;
 
+	// Boat damage
+	double damage;
+
 	// Weather data (including wind)
 	proteus_Weather wx;
 

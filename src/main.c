@@ -463,7 +463,7 @@ static void handleBoatRegistryCommand(Command* cmd)
 	{
 		case COMMAND_ACTION_ADD_BOAT:
 		{
-			Boat* boat = Boat_new(cmd->values[0].d, cmd->values[1].d, cmd->values[2].i);
+			Boat* boat = Boat_new(cmd->values[0].d, cmd->values[1].d, cmd->values[2].i, cmd->values[3].i);
 			if (BoatRegistry_OK != BoatRegistry_add(boat, cmd->name))
 			{
 				free(boat);
@@ -497,6 +497,7 @@ static void perfAddAndStartRandomBoat()
 	cmd.values[0].d = PerfUtils_getRandomLat();
 	cmd.values[1].d = PerfUtils_getRandomLon();
 	cmd.values[2].i = PerfUtils_getRandomBoatType();
+	cmd.values[3].i = PerfUtils_getRandomBoatFlags();
 
 	handleCommand(&cmd, 0);
 
