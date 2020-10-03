@@ -310,7 +310,7 @@ static const double MAXI_TRIMARAN_RESPONSE[] =
 	2.01,	1.98,	1.80,	1.53,	1.40,	1.23,	0.78,
 	1.58,	1.58,	1.53,	1.31,	1.31,	1.30,	0.77,
 	1.30,	1.26,	1.26,	1.16,	1.11,	1.15,	0.74,
-	1.15,	1.19,	1.19,	1.04,	0.99,	1.03,	0.67,
+	1.10,	1.13,	1.13,	0.97,	0.92,	0.95,	0.62,
 	0.92,	0.98,	0.96,	0.85,	0.81,	0.84,	0.51,
 	0.00,	0.00,	0.00,	0.00,	0.00,	0.00,	0.00,	// Values on these two lines are never used, but we add them
 	0.00							// here to prevent reading garbage in calculations below.
