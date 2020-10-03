@@ -291,7 +291,7 @@ static const double BRIGANTINE_140_RESPONSE[] =
  */
 static const double MAXI_TRIMARAN_RESPONSE[] =
 {
-	//	1	2	4	8	12	16	24	m/s
+//	1	2	4	8	12	16	24	m/s
 
 	-0.10,	-0.10,	-0.10,	-0.10,	-0.10,	-0.10,	-0.10,
 	-0.08,	-0.08,	-0.08,	-0.08,	-0.08,	-0.08,	-0.08,
