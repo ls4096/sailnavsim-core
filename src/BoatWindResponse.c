@@ -285,6 +285,39 @@ static const double BRIGANTINE_140_RESPONSE[] =
 #define BRIGANTINE_140_COURSE_CHANGE_RATE (1.25)
 #define BRIGANTINE_140_BOAT_INERTIA (45.0)
 
+/**
+ * Wind response factor lookup table for the "Maxi Trimaran" sailing vessel
+ * Approximated from a polar an approximate polar plot
+ */
+static const double MAXI_TRIMARAN_RESPONSE[] =
+{
+	//	1	2	4	8	12	16	24	m/s
+
+	-0.10,	-0.10,	-0.10,	-0.10,	-0.10,	-0.10,	-0.10,
+	-0.08,	-0.08,	-0.08,	-0.08,	-0.08,	-0.08,	-0.08,
+	-0.05,	-0.05,	-0.05,	-0.05,	-0.05,	-0.05,	-0.05,
+	1.37,	1.33,	1.12,	0.67,	0.50,	0.38,	0.22,
+	2.01,	2.02,	1.66,	1.00,	0.76,	0.58,	0.33,
+	2.38,	2.41,	1.76,	1.10,	0.84,	0.65,	0.38,
+	2.66,	2.70,	1.87,	1.18,	0.91,	0.73,	0.43,
+	2.92,	2.85,	1.96,	1.25,	1.01,	0.83,	0.51,
+	3.06,	2.96,	2.14,	1.38,	1.14,	0.95,	0.56,
+	3.06,	2.96,	2.19,	1.45,	1.26,	1.05,	0.61,
+	2.92,	2.85,	2.14,	1.55,	1.34,	1.07,	0.60,
+	2.64,	2.67,	2.17,	1.59,	1.35,	1.11,	0.65,
+	2.59,	2.59,	2.14,	1.59,	1.37,	1.17,	0.69,
+	2.38,	2.34,	2.01,	1.61,	1.39,	1.21,	0.72,
+	2.01,	1.98,	1.80,	1.53,	1.40,	1.23,	0.78,
+	1.58,	1.58,	1.53,	1.31,	1.31,	1.30,	0.77,
+	1.30,	1.26,	1.26,	1.16,	1.11,	1.15,	0.74,
+	1.15,	1.19,	1.19,	1.04,	0.99,	1.03,	0.67,
+	1.08,	1.15,	1.13,	1.00,	0.95,	0.98,	0.60,
+	0.00,	0.00,	0.00,	0.00,	0.00,	0.00,	0.00,	// Values on these two lines are never used, but we add them
+	0.00													// here to prevent reading garbage in calculations below.
+};
+
+#define MAXI_TRIMARAN_COURSE_CHANGE_RATE (2.50)
+#define MAXI_TRIMARAN_BOAT_INERTIA (32.0)
 
 static const double* WIND_RESPONSES[] = {
 	SAILNAVSIM_CLASSIC_RESPONSE, // 0
@@ -293,7 +326,8 @@ static const double* WIND_RESPONSES[] = {
 	HANSE_385_RESPONSE, // 3
 	VOLVO_70_RESPONSE, // 4
 	SUPER_MAXI_SCALLYWAG_RESPONSE, // 5
-	BRIGANTINE_140_RESPONSE // 6
+	BRIGANTINE_140_RESPONSE, // 6
+	MAXI_TRIMARAN_RESPONSE // 7
 };
 
 static const double COURSE_CHANGE_RATES[] = {
@@ -303,7 +337,8 @@ static const double COURSE_CHANGE_RATES[] = {
 	HANSE_385_COURSE_CHANGE_RATE, // 3
 	VOLVO_70_COURSE_CHANGE_RATE, // 4
 	SUPER_MAXI_SCALLYWAG_COURSE_CHANGE_RATE, // 5
-	BRIGANTINE_140_COURSE_CHANGE_RATE // 6
+	BRIGANTINE_140_COURSE_CHANGE_RATE, // 6
+	MAXI_TRIMARAN_COURSE_CHANGE_RATE // 7
 };
 
 static const double BOAT_INERTIAS[] = {
@@ -313,10 +348,11 @@ static const double BOAT_INERTIAS[] = {
 	HANSE_385_BOAT_INERTIA, // 3
 	VOLVO_70_BOAT_INERTIA, // 4
 	SUPER_MAXI_SCALLYWAG_BOAT_INERTIA, // 5
-	BRIGANTINE_140_BOAT_INERTIA // 6
+	BRIGANTINE_140_BOAT_INERTIA, // 6
+	MAXI_TRIMARAN_BOAT_INERTIA // 7
 };
 
-static const int BOAT_TYPE_MAX = 6;
+static const int BOAT_TYPE_MAX = 7;
 
 
 double BoatWindResponse_getBoatSpeed(double windSpd, double angleFromWind, int boatType)
