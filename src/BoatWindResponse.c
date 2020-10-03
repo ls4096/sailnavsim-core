@@ -311,9 +311,9 @@ static const double MAXI_TRIMARAN_RESPONSE[] =
 	1.58,	1.58,	1.53,	1.31,	1.31,	1.30,	0.77,
 	1.30,	1.26,	1.26,	1.16,	1.11,	1.15,	0.74,
 	1.15,	1.19,	1.19,	1.04,	0.99,	1.03,	0.67,
-	1.08,	1.15,	1.13,	1.00,	0.95,	0.98,	0.60,
+	0.92,	0.98,	0.96,	0.85,	0.81,	0.84,	0.51,
 	0.00,	0.00,	0.00,	0.00,	0.00,	0.00,	0.00,	// Values on these two lines are never used, but we add them
-	0.00													// here to prevent reading garbage in calculations below.
+	0.00							// here to prevent reading garbage in calculations below.
 };
 
 #define MAXI_TRIMARAN_COURSE_CHANGE_RATE (2.50)
