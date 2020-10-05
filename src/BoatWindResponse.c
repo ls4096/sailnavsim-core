@@ -316,8 +316,8 @@ static const double MAXI_TRIMARAN_RESPONSE[] =
 	0.00							// here to prevent reading garbage in calculations below.
 };
 
-#define MAXI_TRIMARAN_COURSE_CHANGE_RATE (2.50)
-#define MAXI_TRIMARAN_BOAT_INERTIA (32.0)
+#define MAXI_TRIMARAN_COURSE_CHANGE_RATE (3.10)
+#define MAXI_TRIMARAN_BOAT_INERTIA (25.0)
 
 static const double* WIND_RESPONSES[] = {
 	SAILNAVSIM_CLASSIC_RESPONSE, // 0
