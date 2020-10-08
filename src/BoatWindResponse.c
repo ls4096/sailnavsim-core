@@ -285,6 +285,7 @@ static const double BRIGANTINE_140_RESPONSE[] =
 #define BRIGANTINE_140_COURSE_CHANGE_RATE (1.25)
 #define BRIGANTINE_140_BOAT_INERTIA (45.0)
 
+
 /**
  * Wind response factor lookup table for the "Maxi Trimaran" sailing vessel
  * Approximated from a polar an approximate polar plot
@@ -312,12 +313,49 @@ static const double MAXI_TRIMARAN_RESPONSE[] =
 	1.30,	1.26,	1.26,	1.16,	1.11,	1.15,	0.74,
 	1.10,	1.13,	1.13,	0.97,	0.92,	0.95,	0.62,
 	0.92,	0.98,	0.96,	0.85,	0.81,	0.84,	0.51,
+
 	0.00,	0.00,	0.00,	0.00,	0.00,	0.00,	0.00,	// Values on these two lines are never used, but we add them
 	0.00							// here to prevent reading garbage in calculations below.
 };
 
 #define MAXI_TRIMARAN_COURSE_CHANGE_RATE (3.10)
 #define MAXI_TRIMARAN_BOAT_INERTIA (25.0)
+
+
+/**
+ * Wind response factor lookup table for the "IMOCA 60" sailing vessel
+ */
+static const double IMOCA_60_RESPONSE[] =
+{
+//	1	2	4	8	12	16	24	m/s
+
+	-0.10,	-0.10,	-0.10,	-0.10,	-0.10,	-0.10,	-0.10,	// 0 deg
+	-0.08,	-0.08,	-0.08,	-0.08,	-0.08,	-0.08,	-0.08,	// 10 deg
+	-0.05,	-0.05,	-0.05,	-0.05,	-0.05,	-0.05,	-0.05,	// 20 deg
+	0.565,	1.013,	0.918,	0.464,	0.288,	0.214,	0.141,  // 30 deg
+	0.900,	1.418,	1.128,	0.605,	0.402,	0.303,	0.202,  // 40 deg
+	1.135,	1.678,	1.236,	0.671,	0.455,	0.349,	0.236,  // 50 deg
+	1.304,	1.853,	1.305,	0.727,	0.501,	0.390,	0.266,  // 60 deg
+	1.425,	1.978,	1.364,	0.787,	0.562,	0.445,	0.306,  // 70 deg
+	1.525,	2.030,	1.416,	0.864,	0.640,	0.517,	0.358,  // 80 deg
+	1.475,	2.030,	1.454,	0.959,	0.740,	0.605,	0.422,  // 90 deg
+	1.430,	1.948,	1.476,	1.049,	0.817,	0.667,	0.465,  // 100 deg
+	1.385,	1.968,	1.456,	1.141,	0.898,	0.732,	0.511,  // 110 deg
+	1.335,	1.945,	1.459,	1.235,	0.989,	0.803,	0.561,  // 120 deg
+	1.235,	1.823,	1.476,	1.225,	1.051,	0.845,	0.591,  // 130 deg
+	1.045,	1.620,	1.438,	1.274,	1.053,	0.851,	0.595,  // 140 deg
+	0.905,	1.400,	1.358,	1.289,	1.070,	0.865,	0.604,  // 150 deg
+	0.710,	1.158,	1.258,	1.164,	0.982,	0.791,	0.553,  // 160 deg
+	0.665,	1.010,	1.173,	1.059,	0.889,	0.717,	0.501,  // 170 deg
+	0.520,	0.843,	0.990,	0.956,	0.793,	0.641,	0.448,  // 180 deg
+
+	0.00,	0.00,	0.00,	0.00,	0.00,	0.00,	0.00,	// Values on these two lines are never used, but we add them
+	0.00							// here to prevent reading garbage in calculations below.
+};
+
+#define IMOCA_60_COURSE_CHANGE_RATE (2.25)
+#define IMOCA_60_BOAT_INERTIA (28.0)
+
 
 static const double* WIND_RESPONSES[] = {
 	SAILNAVSIM_CLASSIC_RESPONSE, // 0
@@ -327,7 +365,8 @@ static const double* WIND_RESPONSES[] = {
 	VOLVO_70_RESPONSE, // 4
 	SUPER_MAXI_SCALLYWAG_RESPONSE, // 5
 	BRIGANTINE_140_RESPONSE, // 6
-	MAXI_TRIMARAN_RESPONSE // 7
+	MAXI_TRIMARAN_RESPONSE, // 7
+	IMOCA_60_RESPONSE // 8
 };
 
 static const double COURSE_CHANGE_RATES[] = {
@@ -338,7 +377,8 @@ static const double COURSE_CHANGE_RATES[] = {
 	VOLVO_70_COURSE_CHANGE_RATE, // 4
 	SUPER_MAXI_SCALLYWAG_COURSE_CHANGE_RATE, // 5
 	BRIGANTINE_140_COURSE_CHANGE_RATE, // 6
-	MAXI_TRIMARAN_COURSE_CHANGE_RATE // 7
+	MAXI_TRIMARAN_COURSE_CHANGE_RATE, // 7
+	IMOCA_60_COURSE_CHANGE_RATE // 8
 };
 
 static const double BOAT_INERTIAS[] = {
@@ -349,10 +389,11 @@ static const double BOAT_INERTIAS[] = {
 	VOLVO_70_BOAT_INERTIA, // 4
 	SUPER_MAXI_SCALLYWAG_BOAT_INERTIA, // 5
 	BRIGANTINE_140_BOAT_INERTIA, // 6
-	MAXI_TRIMARAN_BOAT_INERTIA // 7
+	MAXI_TRIMARAN_BOAT_INERTIA, // 7
+	IMOCA_60_BOAT_INERTIA // 8
 };
 
-static const int BOAT_TYPE_MAX = 7;
+static const int BOAT_TYPE_MAX = 8;
 
 
 double BoatWindResponse_getBoatSpeed(double windSpd, double angleFromWind, int boatType)
