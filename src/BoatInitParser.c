@@ -304,6 +304,8 @@ static int startFile(const char* boatInitFilename)
 	return 0;
 }
 
+#define BOAT_INIT_ENTRY_BUF_SIZE (1024)
+
 static BoatInitEntry* getNextFile()
 {
 	if (_fp == 0)
@@ -311,13 +313,13 @@ static BoatInitEntry* getNextFile()
 		return 0;
 	}
 
-	char buf[1024];
+	char buf[BOAT_INIT_ENTRY_BUF_SIZE];
 
 	char* name;
 	double lat, lon;
 	int type, flags;
 
-	if (fgets(buf, 1024, _fp) == buf)
+	if (fgets(buf, BOAT_INIT_ENTRY_BUF_SIZE, _fp) == buf)
 	{
 		if (readBoatInitData(buf, &name, &lat, &lon, &type, &flags) != 0)
 		{

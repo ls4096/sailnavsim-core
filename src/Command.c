@@ -105,9 +105,11 @@ Command* Command_next()
 }
 
 
+#define COMMAND_BUF_SIZE (1024)
+
 static void* commandThreadMain(void* arg)
 {
-	char buf[1024];
+	char buf[COMMAND_BUF_SIZE];
 
 	FILE* f = fopen(_cmdsInputPath, "r");
 	if (f == 0)
@@ -118,7 +120,7 @@ static void* commandThreadMain(void* arg)
 
 	for (;;)
 	{
-		while (fgets(buf, 1024, f) != 0)
+		while (fgets(buf, COMMAND_BUF_SIZE, f) != 0)
 		{
 			handleCmd(buf);
 		}

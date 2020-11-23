@@ -39,6 +39,9 @@
 
 #define ERRLOG_ID "Logger"
 
+#define CSV_LOGGER_DIR_PATH_MAXLEN (4096 - 512)
+#define CSV_LOGGER_LINE_BUF_SIZE (2048)
+
 
 typedef struct LogEntries LogEntries;
 
@@ -79,6 +82,12 @@ int Logger_init(const char* csvLoggerDir, const char* sqliteDbFilename)
 	if (!csvLoggerDir && !sqliteDbFilename)
 	{
 		ERRLOG("No logger output paths provided, so not logging to anywhere.");
+		return 0;
+	}
+
+	if (csvLoggerDir && (strlen(csvLoggerDir) >= CSV_LOGGER_DIR_PATH_MAXLEN))
+	{
+		ERRLOG("CSV logger directory path name is too long!");
 		return 0;
 	}
 
@@ -260,8 +269,8 @@ static void writeLogsCsv(LogEntry* logEntries, unsigned int count)
 	{
 		const LogEntry* const log = logEntries + i;
 
-		char filepath[1024];
-		sprintf(filepath, "%s/%s.csv", _csvLoggerDir, log->boatName);
+		char filepath[CSV_LOGGER_DIR_PATH_MAXLEN + 512];
+		snprintf(filepath, CSV_LOGGER_DIR_PATH_MAXLEN + 512, "%s/%s.csv", _csvLoggerDir, log->boatName);
 
 		FILE* f = fopen(filepath, "a");
 		if (f == 0)
@@ -270,7 +279,7 @@ static void writeLogsCsv(LogEntry* logEntries, unsigned int count)
 			continue;
 		}
 
-		char logLine[2048];
+		char logLine[CSV_LOGGER_LINE_BUF_SIZE];
 
 		// Log:
 		//  - time
@@ -298,7 +307,7 @@ static void writeLogsCsv(LogEntry* logEntries, unsigned int count)
 		//  - ocean ice
 		if (log->oceanDataValid)
 		{
-			sprintf(logLine, "%lu,%.6f,%.6f,%.1f,%.3f,%.1f,%.3f,%.1f,%.3f,%.1f,%.3f,%.1f,%.1f,%.1f,%.1f,%.0f,%.0f,%.2f,%d,%d,%d,%.3f,%.0f,%.1f,%.3f,%.3f\n",
+			snprintf(logLine, CSV_LOGGER_LINE_BUF_SIZE, "%lu,%.6f,%.6f,%.1f,%.3f,%.1f,%.3f,%.1f,%.3f,%.1f,%.3f,%.1f,%.1f,%.1f,%.1f,%.0f,%.0f,%.2f,%d,%d,%d,%.3f,%.0f,%.1f,%.3f,%.3f\n",
 				log->time,
 				log->boatPos.lat,
 				log->boatPos.lon,
@@ -329,7 +338,7 @@ static void writeLogsCsv(LogEntry* logEntries, unsigned int count)
 		}
 		else
 		{
-			sprintf(logLine, "%lu,%.6f,%.6f,%.1f,%.3f,%.1f,%.3f,%.1f,%.3f,,,,%.1f,%.1f,%.1f,%.0f,%.0f,%.2f,%d,%d,%d,,,%.1f,%.3f,%.3f\n",
+			snprintf(logLine, CSV_LOGGER_LINE_BUF_SIZE, "%lu,%.6f,%.6f,%.1f,%.3f,%.1f,%.3f,%.1f,%.3f,,,,%.1f,%.1f,%.1f,%.0f,%.0f,%.2f,%d,%d,%d,,,%.1f,%.3f,%.3f\n",
 				log->time,
 				log->boatPos.lat,
 				log->boatPos.lon,
