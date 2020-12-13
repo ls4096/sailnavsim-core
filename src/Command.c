@@ -257,7 +257,7 @@ static bool areValuesValidForAction(int action, CommandValue values[COMMAND_MAX_
 			return (values[0].d > -90.0 && values[0].d < 90.0 &&
 					values[1].d >= -180.0 && values[1].d <= 180.0 &&
 					values[2].i >= 0 && values[2].i <= BOAT_TYPE_MAX_VALUE &&
-					values[3].i >= 0 && values[3].i <= 1);
+					values[3].i >= 0 && values[3].i <= 0x0003);
 		}
 	}
 

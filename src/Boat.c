@@ -22,6 +22,7 @@
 #include <proteus/Compass.h>
 #include <proteus/GeoInfo.h>
 #include <proteus/Ocean.h>
+#include <proteus/Wave.h>
 #include <proteus/Weather.h>
 
 #include "Boat.h"
@@ -35,11 +36,12 @@
 
 
 static void updateCourse(Boat* b, double s);
-static void updateVelocity(Boat* b, double s, const proteus_Weather* wx, bool odv, const proteus_OceanData* od);
+static void updateVelocity(Boat* b, double s, const proteus_Weather* wx, bool odv, const proteus_OceanData* od, bool wdv, const proteus_WaveData* wd);
 static void updateDamage(Boat* b, double windGust, bool takeDamage);
 static void stopBoat(Boat* b);
 static double oceanIceSpeedAdjustmentFactor(bool valid, const proteus_OceanData* od);
 static double boatDamageSpeedAdjustmentFactor(const Boat* b);
+static double waveSpeedAdjustmentFactor(const Boat* b, bool valid, const proteus_WaveData* wd);
 
 static unsigned int _randSeed = 0;
 
@@ -138,6 +140,9 @@ void Boat_advance(Boat* b, double s)
 	proteus_OceanData od;
 	bool oceanDataValid = proteus_Ocean_get(&b->pos, &od);
 
+	proteus_WaveData wd;
+	bool waveDataValid = proteus_Wave_get(&b->pos, &wd);
+
 	proteus_Weather wx;
 	proteus_Weather_get(&b->pos, &wx, true);
 
@@ -167,7 +172,7 @@ void Boat_advance(Boat* b, double s)
 		updateCourse(b, s);
 
 		// Update boat velocity.
-		updateVelocity(b, s, &wx, oceanDataValid, &od);
+		updateVelocity(b, s, &wx, oceanDataValid, &od, waveDataValid, &wd);
 	}
 
 	// Advance position.
@@ -274,7 +279,7 @@ static void updateCourse(Boat* b, double s)
 	}
 }
 
-static void updateVelocity(Boat* b, double s, const proteus_Weather* wx, bool odv, const proteus_OceanData* od)
+static void updateVelocity(Boat* b, double s, const proteus_Weather* wx, bool odv, const proteus_OceanData* od, bool wdv, const proteus_WaveData* wd)
 {
 	const proteus_GeoVec* windVec = &wx->wind;
 
@@ -282,7 +287,8 @@ static void updateVelocity(Boat* b, double s, const proteus_Weather* wx, bool od
 
 	const double spd = BoatWindResponse_getBoatSpeed(windVec->mag, angleFromWind, b->boatType) *
 		oceanIceSpeedAdjustmentFactor(odv, od) *
-		boatDamageSpeedAdjustmentFactor(b);
+		boatDamageSpeedAdjustmentFactor(b) *
+		waveSpeedAdjustmentFactor(b, wdv, wd);
 
 	const double speedChangeResponse = BoatWindResponse_getSpeedChangeResponse(b->boatType);
 
@@ -345,10 +351,30 @@ static void stopBoat(Boat* b)
 
 static double oceanIceSpeedAdjustmentFactor(bool valid, const proteus_OceanData* od)
 {
-	return (valid ? (1.0 - (od->ice / 100.0f)) : 1.0);
+	if (valid)
+	{
+		return (1.0 - (od->ice / 100.0f));
+	}
+
+	return 1.0;
 }
 
 static double boatDamageSpeedAdjustmentFactor(const Boat* b)
 {
-	return ((b->boatFlags & BOAT_FLAG_TAKES_DAMAGE) ? (1.0 - b->damage * 0.01) : 1.0);
+	if (b->boatFlags & BOAT_FLAG_TAKES_DAMAGE)
+	{
+		return (1.0 - (b->damage * 0.01));
+	}
+
+	return 1.0;
+}
+
+static double waveSpeedAdjustmentFactor(const Boat* b, bool valid, const proteus_WaveData* wd)
+{
+	if ((b->boatFlags & BOAT_FLAG_WAVE_SPEED_EFFECT) && valid)
+	{
+		return (1.0 / exp(wd->waveHeight * wd->waveHeight / BoatWindResponse_getWaveEffectResistance(b->boatType)));
+	}
+
+	return 1.0;
 }

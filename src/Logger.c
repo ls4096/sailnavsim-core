@@ -29,6 +29,7 @@
 
 #include <proteus/GeoInfo.h>
 #include <proteus/Ocean.h>
+#include <proteus/Wave.h>
 #include <proteus/Weather.h>
 
 #include "Logger.h"
@@ -130,6 +131,9 @@ void Logger_fillLogEntry(Boat* boat, const char* name, time_t t, LogEntry* log)
 	proteus_OceanData od;
 	const bool odValid = proteus_Ocean_get(&boat->pos, &od);
 
+	proteus_WaveData wd;
+	const bool wdValid = proteus_Wave_get(&boat->pos, &wd);
+
 	const bool isWater = proteus_GeoInfo_isWater(&boat->pos);
 
 	proteus_GeoVec boatWithCurrent;
@@ -171,6 +175,8 @@ void Logger_fillLogEntry(Boat* boat, const char* name, time_t t, LogEntry* log)
 	log->wx = wx;
 	log->oceanData = od;
 	log->oceanDataValid = odValid;
+	log->waveData = wd;
+	log->waveDataValid = wdValid;
 	log->boatState = (boat->stop ? 0 : (boat->sailsDown ? 2 : 1));
 	log->locState = (isWater ? 0 : 1);
 }
@@ -305,9 +311,21 @@ static void writeLogsCsv(LogEntry* logEntries, unsigned int count)
 		//  - boat location (0: water; 1: landed)
 		//  - water salinity
 		//  - ocean ice
+		//  - wave height
+
+		char waveHeightStr[16];
+		if (log->waveDataValid)
+		{
+			snprintf(waveHeightStr, 16, "%.2f", log->waveData.waveHeight);
+		}
+		else
+		{
+			waveHeightStr[0] = 0;
+		}
+
 		if (log->oceanDataValid)
 		{
-			snprintf(logLine, CSV_LOGGER_LINE_BUF_SIZE, "%lu,%.6f,%.6f,%.1f,%.3f,%.1f,%.3f,%.1f,%.3f,%.1f,%.3f,%.1f,%.1f,%.1f,%.1f,%.0f,%.0f,%.2f,%d,%d,%d,%.3f,%.0f,%.1f,%.3f,%.3f\n",
+			snprintf(logLine, CSV_LOGGER_LINE_BUF_SIZE, "%lu,%.6f,%.6f,%.1f,%.3f,%.1f,%.3f,%.1f,%.3f,%.1f,%.3f,%.1f,%.1f,%.1f,%.1f,%.0f,%.0f,%.2f,%d,%d,%d,%.3f,%.0f,%.1f,%.3f,%.3f,%s\n",
 				log->time,
 				log->boatPos.lat,
 				log->boatPos.lon,
@@ -333,12 +351,13 @@ static void writeLogsCsv(LogEntry* logEntries, unsigned int count)
 				log->oceanData.ice,
 				log->distanceTravelled,
 				log->damage,
-				log->wx.windGust
+				log->wx.windGust,
+				waveHeightStr
 				);
 		}
 		else
 		{
-			snprintf(logLine, CSV_LOGGER_LINE_BUF_SIZE, "%lu,%.6f,%.6f,%.1f,%.3f,%.1f,%.3f,%.1f,%.3f,,,,%.1f,%.1f,%.1f,%.0f,%.0f,%.2f,%d,%d,%d,,,%.1f,%.3f,%.3f\n",
+			snprintf(logLine, CSV_LOGGER_LINE_BUF_SIZE, "%lu,%.6f,%.6f,%.1f,%.3f,%.1f,%.3f,%.1f,%.3f,,,,%.1f,%.1f,%.1f,%.0f,%.0f,%.2f,%d,%d,%d,,,%.1f,%.3f,%.3f,%s\n",
 				log->time,
 				log->boatPos.lat,
 				log->boatPos.lon,
@@ -359,7 +378,8 @@ static void writeLogsCsv(LogEntry* logEntries, unsigned int count)
 				log->locState,
 				log->distanceTravelled,
 				log->damage,
-				log->wx.windGust
+				log->wx.windGust,
+				waveHeightStr
 				);
 		}
 
@@ -615,6 +635,24 @@ static void writeLogsSql(LogEntry* logEntries, unsigned int count)
 			continue;
 		}
 
+		if (log->waveDataValid)
+		{
+			if (SQLITE_OK != (src = sqlite3_bind_double(_sqlInsertStmt, ++n, log->waveData.waveHeight)))
+			{
+				ERRLOG1("Failed to bind wave data wave height! sqlite rc=%d", src);
+				continue;
+			}
+		}
+		else
+		{
+			if (SQLITE_OK != (src = sqlite3_bind_null(_sqlInsertStmt, ++n)))
+			{
+				ERRLOG1("Failed to bind null wave data wave height! sqlite rc=%d", src);
+				continue;
+			}
+		}
+
+
 		if (SQLITE_DONE != (src = sqlite3_step(_sqlInsertStmt)))
 		{
 			ERRLOG1("Failed to step insert! sqlite rc=%d", src);
@@ -673,7 +711,7 @@ static int setupSql(const char* sqliteDbFilename)
 		return -1;
 	}
 
-	static const char* INSERT_STMT_STR = "INSERT INTO BoatLog VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);";
+	static const char* INSERT_STMT_STR = "INSERT INTO BoatLog VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);";
 
 	if (SQLITE_OK != (src = sqlite3_prepare_v2(_sql, INSERT_STMT_STR, strlen(INSERT_STMT_STR) + 1, &_sqlInsertStmt, 0)))
 	{

@@ -25,6 +25,7 @@
 #include <proteus/GeoInfo.h>
 #include <proteus/Logging.h>
 #include <proteus/Ocean.h>
+#include <proteus/Wave.h>
 #include <proteus/Weather.h>
 
 #include "Boat.h"
@@ -49,6 +50,9 @@
 #define OCEAN_DATA_PATH_T030 "ocean_data/t030.csv"
 #define OCEAN_DATA_PATH_T042 "ocean_data/t042.csv"
 
+#define WAVE_DATA_PATH_F30 "wave_data/f30.csv"
+#define WAVE_DATA_PATH_F42 "wave_data/f42.csv"
+
 #define GEO_INFO_DATA_DIR_PATH "geo_water_data/"
 
 
@@ -66,7 +70,7 @@
 #define PERF_TEST_MAX_BOAT_COUNT (51200)
 
 
-static const char* VERSION_STRING = "SailNavSim version 1.4.1 (" __DATE__ " " __TIME__ ")";
+static const char* VERSION_STRING = "SailNavSim version 1.5.0 (" __DATE__ " " __TIME__ ")";
 
 
 static int parseArgs(int argc, char** argv);
@@ -150,6 +154,12 @@ int main(int argc, char** argv)
 	if (proteus_Ocean_init(OCEAN_DATA_PATH_T030, OCEAN_DATA_PATH_T042) != 0)
 	{
 		ERRLOG("Failed to init ocean data!");
+		return -1;
+	}
+
+	if (proteus_Wave_init(WAVE_DATA_PATH_F30, WAVE_DATA_PATH_F42) != 0)
+	{
+		ERRLOG("Failed to init wave data!");
 		return -1;
 	}
 

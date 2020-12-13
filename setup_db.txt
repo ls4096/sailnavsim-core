@@ -43,5 +43,6 @@ CREATE TABLE BoatLog(
 	oceanIce INTEGER,
 	distanceTravelled REAL NOT NULL,
 	damage REAL NOT NULL,
-	windGust REAL NOT NULL
+	windGust REAL NOT NULL,
+	waveHeight REAL
 );

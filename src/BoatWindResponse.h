@@ -23,4 +23,6 @@ double BoatWindResponse_getCourseChangeRate(int boatType);
 
 double BoatWindResponse_getSpeedChangeResponse(int boatType);
 
+double BoatWindResponse_getWaveEffectResistance(int boatType);
+
 #endif // _BoatWindResponse_h_

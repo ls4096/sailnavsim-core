@@ -21,6 +21,7 @@
 
 #include <proteus/GeoPos.h>
 #include <proteus/GeoVec.h>
+#include <proteus/Wave.h>
 #include <proteus/Weather.h>
 #include <proteus/Ocean.h>
 
@@ -54,9 +55,11 @@ typedef struct
 
 	// Ocean data
 	proteus_OceanData oceanData;
-
-	// Ocean data validity
 	bool oceanDataValid;
+
+	// Wave data
+	proteus_WaveData waveData;
+	bool waveDataValid;
 
 	// Boat status (0: stopped; 1: moving - sailing; 2: moving - sails down)
 	unsigned char boatState;
