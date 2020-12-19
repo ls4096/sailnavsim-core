@@ -64,19 +64,19 @@
 #define SQLITE_DB_FILENAME "./sailnavsim.sql"
 
 
-#define PERF_TEST_ITERATIONS_WARMUP (20)
-#define PERF_TEST_ITERATIONS_MEASURE (80)
+#define PERF_TEST_ITERATIONS_WARMUP (10)
+#define PERF_TEST_ITERATIONS_MEASURE (40)
 #define PERF_TEST_MIN_BOAT_COUNT (100)
-#define PERF_TEST_MAX_BOAT_COUNT (51200)
+#define PERF_TEST_MAX_BOAT_COUNT (204800)
 
 
-static const char* VERSION_STRING = "SailNavSim version 1.5.0 (" __DATE__ " " __TIME__ ")";
+static const char* VERSION_STRING = "SailNavSim version 1.5.1 (" __DATE__ " " __TIME__ ")";
 
 
 static int parseArgs(int argc, char** argv);
 static void printVersionInfo();
 
-static void handleCommand(Command* cmd, BoatEntry* boats);
+static void handleCommand(Command* cmd);
 static void handleBoatRegistryCommand(Command* cmd);
 
 static void perfAddAndStartRandomBoat();
@@ -330,7 +330,7 @@ int main(int argc, char** argv)
 		Command* cmd;
 		while ((cmd = Command_next()))
 		{
-			handleCommand(cmd, boats);
+			handleCommand(cmd);
 
 			free(cmd->name);
 			free(cmd);
@@ -352,7 +352,7 @@ int main(int argc, char** argv)
 		long sleepTime = (nextT.tv_sec * 1000000000 + nextT.tv_nsec) - (tp.tv_sec * 1000000000 + tp.tv_nsec);
 		if (sleepTime < 1)
 		{
-			ERRLOG2("Iteration (b=%u, c=%u) took longer than 1 second. Starting next right away!", boatCount, cmdCount);
+			ERRLOG2("Iteration (b=%u, c=%u) fell behind. Starting next right away!", boatCount, cmdCount);
 			continue;
 		}
 
@@ -419,7 +419,7 @@ static void printVersionInfo()
 	printf("%s, using libProteus version %s\n", VERSION_STRING, proteus_getVersionString());
 }
 
-static void handleCommand(Command* cmd, BoatEntry* boats)
+static void handleCommand(Command* cmd)
 {
 	// First check if it's a boat registry action, and handle those actions separately.
 	switch (cmd->action)
@@ -430,19 +430,7 @@ static void handleCommand(Command* cmd, BoatEntry* boats)
 			return;
 	}
 
-	Boat* foundBoat = 0;
-
-	while (boats)
-	{
-		if (strcmp(boats->name, cmd->name) == 0)
-		{
-			foundBoat = boats->boat;
-			break;
-		}
-
-		boats = boats->next;
-	}
-
+	Boat* foundBoat = BoatRegistry_get(cmd->name);
 	if (!foundBoat)
 	{
 		return;
@@ -509,24 +497,20 @@ static void perfAddAndStartRandomBoat()
 	cmd.values[2].i = PerfUtils_getRandomBoatType();
 	cmd.values[3].i = PerfUtils_getRandomBoatFlags();
 
-	handleCommand(&cmd, 0);
-
-
-	// Get up-to-date BoatEntry to use.
-	BoatEntry* boats = BoatRegistry_getAllBoats(0);
+	handleCommand(&cmd);
 
 
 	// Set course.
 	cmd.action = COMMAND_ACTION_COURSE;
 	cmd.values[0].i = PerfUtils_getRandomCourse();
 
-	handleCommand(&cmd, boats);
+	handleCommand(&cmd);
 
 
 	// Start boat.
 	cmd.action = COMMAND_ACTION_START;
 
-	handleCommand(&cmd, boats);
+	handleCommand(&cmd);
 
 
 	free(cmd.name);

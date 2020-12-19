@@ -164,14 +164,17 @@ int test_BoatRegistry_runBasic()
 }
 
 
-#define LOAD_BOAT_COUNT_MAX (1000)
-#define LOAD_ITERATIONS (5000)
+#define LOAD_BOAT_COUNT_MAX (10000)
+#define LOAD_ITERATIONS (10000)
 
 static int verifyLoadBoatRegistry(const bool* boatList);
 
 static int getRandInt(int max);
 static unsigned int _initRandSeed = 0;
 static unsigned int _randSeed = 0;
+
+static double getBoatLatForR(int r);
+static double getBoatLonForR(int r);
 
 int test_BoatRegistry_runLoad()
 {
@@ -198,7 +201,7 @@ int test_BoatRegistry_runLoad()
 		{
 			// Add random boat.
 
-			b = Boat_new(0.0, 0.0, 0, 0);
+			b = Boat_new(getBoatLatForR(r), getBoatLonForR(r), 0, 0);
 
 			sprintf(boatName, "Boat%d", r);
 			rc = BoatRegistry_add(b, boatName);
@@ -302,6 +305,9 @@ static int verifyLoadBoatRegistry(const bool* boatList)
 		sprintf(boatName, "Boat%d", i);
 		if ((b = BoatRegistry_get(boatName)))
 		{
+			EQUALS_DBL(b->pos.lat, getBoatLatForR(i));
+			EQUALS_DBL(b->pos.lon, getBoatLonForR(i));
+
 			localBoatList[i] = true;
 			count++;
 		}
@@ -336,6 +342,9 @@ static int verifyLoadBoatRegistry(const bool* boatList)
 		int boatNum = atoi(entry->name + strlen("Boat"));
 		localBoatList[boatNum] = true;
 
+		EQUALS_DBL(entry->boat->pos.lat, getBoatLatForR(boatNum));
+		EQUALS_DBL(entry->boat->pos.lon, getBoatLonForR(boatNum));
+
 		entry = entry->next;
 	}
 
@@ -357,4 +366,14 @@ static int getRandInt(int max)
 	}
 
 	return (rand_r(&_randSeed) % (max + 1));
+}
+
+static double getBoatLatForR(int r)
+{
+	return (((double)r / (double)LOAD_BOAT_COUNT_MAX) * 170.0 - 85.0);
+}
+
+static double getBoatLonForR(int r)
+{
+	return (((double)r / (double)LOAD_BOAT_COUNT_MAX) * 340.0 - 170.0);
 }

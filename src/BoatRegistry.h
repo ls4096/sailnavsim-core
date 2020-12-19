@@ -31,7 +31,9 @@ struct BoatEntry
 {
 	char* name;
 	Boat* boat;
+
 	BoatEntry* next;
+	BoatEntry* prev;
 };
 
 

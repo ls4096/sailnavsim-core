@@ -20,49 +20,68 @@
 #include "BoatRegistry.h"
 
 
-/**
- * BoatRegistry maintains the collection of boats in the simulation.
- *
- * TODO: Reimplement this as a hash table (for example) instead of current linked list.
- *       Boat add/get/remove all currently run in O(n) time for n boats.
- *       Right now, performance can suffer greatly when simulating a very large number
- *       of boats, particularly when many commands are sent to boats at the same time.
- */
-
-
 static BoatEntry* _first = 0;
+static BoatEntry* _last = 0;
 static unsigned int _boatCount = 0;
+
+
+static int hashName(const char* name);
+static BoatEntry* findBoatEntry(const char* name);
+
+
+typedef struct BoatEntryEntry BoatEntryEntry;
+
+struct BoatEntryEntry
+{
+	BoatEntry* e;
+	BoatEntryEntry* next;
+};
+
+static BoatEntryEntry* _buckets[4096] = { 0 };
 
 
 int BoatRegistry_add(Boat* boat, const char* name)
 {
-	BoatEntry* e = _first;
-	BoatEntry* last = _first;
-
-	while (e != 0)
+	if (findBoatEntry(name) != 0)
 	{
-		if (0 == strcmp(name, e->name))
-		{
-			return BoatRegistry_EXISTS;
-		}
-
-		last = e;
-		e = e->next;
+		return BoatRegistry_EXISTS;
 	}
 
 	BoatEntry* newEntry = (BoatEntry*) malloc(sizeof(BoatEntry));
 	newEntry->name = strdup(name);
 	newEntry->boat = boat;
-	newEntry->next = 0;
 
-	if (last == 0)
+	newEntry->next = 0;
+	newEntry->prev = _last;
+
+	if (!_first)
 	{
 		_first = newEntry;
 	}
 	else
 	{
-		last->next = newEntry;
+		_last->next = newEntry;
 	}
+
+	_last = newEntry;
+
+
+	const int bucket = hashName(name);
+
+	BoatEntryEntry* newEntryEntry = (BoatEntryEntry*) malloc(sizeof(BoatEntryEntry));
+	newEntryEntry->e = newEntry;
+	newEntryEntry->next = 0;
+
+	if (!_buckets[bucket])
+	{
+		_buckets[bucket] = newEntryEntry;
+	}
+	else
+	{
+		newEntryEntry->next = _buckets[bucket];
+		_buckets[bucket] = newEntryEntry;
+	}
+
 
 	_boatCount++;
 	return BoatRegistry_OK;
@@ -70,39 +89,55 @@ int BoatRegistry_add(Boat* boat, const char* name)
 
 Boat* BoatRegistry_get(const char* name)
 {
-	BoatEntry* e = _first;
-	while (e != 0)
-	{
-		if (0 == strcmp(name, e->name))
-		{
-			return e->boat;
-		}
+	const BoatEntry* e = findBoatEntry(name);
 
-		e = e->next;
-	}
-
-	return 0;
+	return (e != 0) ? e->boat : 0;
 }
 
 Boat* BoatRegistry_remove(const char* name)
 {
-	BoatEntry* e = _first;
-	BoatEntry* last = _first;
+	const int bucket = hashName(name);
+	BoatEntryEntry* bee = _buckets[bucket];
 
-	while (e != 0)
+	const BoatEntryEntry* const first = bee;
+	BoatEntryEntry* last = 0;
+
+	while (bee)
 	{
-		if (0 == strcmp(name, e->name))
+		if (0 == strcmp(name, bee->e->name))
 		{
-			if (e == _first)
+			if (bee == first)
 			{
-				_first = e->next;
+				_buckets[bucket] = bee->next;
 			}
 			else
 			{
-				last->next = e->next;
+				last->next = bee->next;
+			}
+
+			BoatEntry* e = bee->e;
+
+			if (e->prev)
+			{
+				e->prev->next = e->next;
+			}
+			else
+			{
+				_first = e->next;
+			}
+
+			if (e->next)
+			{
+				e->next->prev = e->prev;
+			}
+			else
+			{
+				_last = e->prev;
 			}
 
 			Boat* boat = e->boat;
+
+			free(bee);
 
 			free(e->name);
 			free(e);
@@ -111,8 +146,8 @@ Boat* BoatRegistry_remove(const char* name)
 			return boat;
 		}
 
-		last = e;
-		e = e->next;
+		last = bee;
+		bee = bee->next;
 	}
 
 	return 0;
@@ -126,4 +161,38 @@ BoatEntry* BoatRegistry_getAllBoats(unsigned int* boatCount)
 	}
 
 	return _first;
+}
+
+
+// A fast and good enough hash function for typical boat "names" for our purposes
+static int hashName(const char* name)
+{
+	static const int PRIMES[] = { 2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53 };
+
+	unsigned int n = 1;
+
+	for (const char* c = name; *c != 0; c++)
+	{
+		n *= PRIMES[((unsigned int)*c) & 0x0f];
+		n >>= 1;
+	}
+
+	return (n & 0x0fff);
+}
+
+static BoatEntry* findBoatEntry(const char* name)
+{
+	unsigned int bucket = hashName(name);
+	const BoatEntryEntry* bee = _buckets[bucket];
+	while (bee)
+	{
+		if (strcmp(name, bee->e->name) == 0)
+		{
+			return bee->e;
+		}
+
+		bee = bee->next;
+	}
+
+	return 0;
 }
