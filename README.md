@@ -3,12 +3,14 @@
 A global sailing navigation simulator, using real-world geographic information and weather and ocean data (as seen here: https://8bitbyte.ca/sailnavsim/).
 
 ## Dependencies
+
 - pthread library (with headers)
 - SQLite3 library (with headers)
 
 ## How to build
 
 ### libProteus
+
 `git submodule update --init`
 
 `cd libproteus`
@@ -22,6 +24,7 @@ A global sailing navigation simulator, using real-world geographic information a
 `make sailnavsim`
 
 ## How to run
+
 `mkfifo cmds`
 
 `LD_LIBRARY_PATH=./libproteus ./sailnavsim`
@@ -41,3 +44,9 @@ A global sailing navigation simulator, using real-world geographic information a
 `echo "TestBoat,stop" > cmds`
 
 `echo "TestBoat,remove" > cmds`
+
+## Build and run tests
+
+`make tests`
+
+`./run_tests.sh`
