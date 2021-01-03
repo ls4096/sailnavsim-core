@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2020 ls4096 <ls4096@8bitbyte.ca>
+ * Copyright (C) 2020-2021 ls4096 <ls4096@8bitbyte.ca>
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Affero General Public License as published by
@@ -14,6 +14,7 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -34,6 +35,7 @@
 #include "Command.h"
 #include "ErrLog.h"
 #include "Logger.h"
+#include "NetServer.h"
 #include "PerfUtils.h"
 
 
@@ -70,7 +72,7 @@
 #define PERF_TEST_MAX_BOAT_COUNT (204800)
 
 
-static const char* VERSION_STRING = "SailNavSim version 1.5.1 (" __DATE__ " " __TIME__ ")";
+static const char* VERSION_STRING = "SailNavSim version 1.6.0 (" __DATE__ " " __TIME__ ")";
 
 
 static int parseArgs(int argc, char** argv);
@@ -80,6 +82,8 @@ static void handleCommand(Command* cmd);
 static void handleBoatRegistryCommand(Command* cmd);
 
 static void perfAddAndStartRandomBoat();
+
+static int _netPort = 0;
 
 
 int main(int argc, char** argv)
@@ -185,6 +189,17 @@ int main(int argc, char** argv)
 	{
 		ERRLOG("Failed to init boat engine!");
 		return -1;
+	}
+
+	if (_netPort > 0)
+	{
+		signal(SIGPIPE, SIG_IGN);
+
+		if (NetServer_init(_netPort) != 0)
+		{
+			ERRLOG("Failed to init net server!");
+			return -1;
+		}
 	}
 
 
@@ -398,6 +413,26 @@ static int parseArgs(int argc, char** argv)
 		else if (0 == strcmp("--perf", argv[i]))
 		{
 			doPerf = true;
+		}
+		else if (0 == strcmp("--netport", argv[i]))
+		{
+			if (argv[i + 1])
+			{
+				_netPort = atoi(argv[i + 1]);
+
+				if (_netPort <= 0 || _netPort > 65535)
+				{
+					printf("Invalid netport argument: %s\n", argv[i + 1]);
+					return -1;
+				}
+
+				i++;
+			}
+			else
+			{
+				printf("No netport argument provided!\n");
+				return -1;
+			}
 		}
 		else
 		{

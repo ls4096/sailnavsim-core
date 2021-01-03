@@ -11,6 +11,7 @@ OBJS = \
 	src/Command.o \
 	src/ErrLog.o \
 	src/Logger.o \
+	src/NetServer.o \
 	src/PerfUtils.o
 
 TESTS_OBJS = \
