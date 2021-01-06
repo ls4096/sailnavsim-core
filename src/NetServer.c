@@ -26,6 +26,8 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 
+#include <proteus/Ocean.h>
+#include <proteus/Wave.h>
 #include <proteus/Weather.h>
 
 #include "NetServer.h"
@@ -35,10 +37,18 @@
 #define ERRLOG_ID "NetServer"
 
 
-#define REQ_TYPE_INVALID (0)
-#define REQ_TYPE_GET_WIND (1)
+#define REQ_TYPE_INVALID		(0)
+#define REQ_TYPE_GET_WIND		(1)
+#define REQ_TYPE_GET_WIND_GUST		(2)
+#define REQ_TYPE_GET_OCEAN_CURRENT	(3)
+#define REQ_TYPE_GET_SEA_ICE		(4)
+#define REQ_TYPE_GET_WAVE_HEIGHT	(5)
 
 static const char* REQ_STR_GET_WIND = "wind";
+static const char* REQ_STR_GET_WIND_GUST = "wind_gust";
+static const char* REQ_STR_GET_OCEAN_CURRENT = "ocean_current";
+static const char* REQ_STR_GET_SEA_ICE = "sea_ice";
+static const char* REQ_STR_GET_WAVE_HEIGHT = "wave_height";
 
 
 #define REQ_MAX_ARG_COUNT (2)
@@ -49,7 +59,7 @@ static const char* REQ_STR_GET_WIND = "wind";
 
 static const uint8_t REQ_VALS_NONE[REQ_MAX_ARG_COUNT] = { REQ_VAL_NONE, REQ_VAL_NONE };
 
-static const uint8_t REQ_GET_WIND_VALS[REQ_MAX_ARG_COUNT] = { REQ_VAL_DOUBLE, REQ_VAL_DOUBLE };
+static const uint8_t REQ_VALS_LAT_LON[REQ_MAX_ARG_COUNT] = { REQ_VAL_DOUBLE, REQ_VAL_DOUBLE };
 
 
 typedef union
@@ -57,6 +67,10 @@ typedef union
 	int i;
 	double d;
 } ReqValue;
+
+
+#define INVALID_INTEGER_VALUE (-999)
+#define INVALID_DOUBLE_VALUE (-999.0)
 
 
 static void* netServerThreadMain(void* arg);
@@ -67,6 +81,10 @@ static int handleMessage(int fd, char* reqStr);
 static int getReqType(const char* s);
 static const uint8_t* getReqExpectedValueTypes(int reqType);
 static bool areValuesValidForReqType(int reqType, ReqValue values[REQ_MAX_ARG_COUNT]);
+
+static void populateWindResponse(char* buf, size_t bufSize, proteus_GeoPos* pos, bool gust);
+static void populateOceanResponse(char* buf, size_t bufSize, proteus_GeoPos* pos, bool seaIce);
+static void populateWaveResponse(char* buf, size_t bufSize, proteus_GeoPos* pos);
 
 
 static pthread_t _netServerThread;
@@ -316,11 +334,9 @@ static int handleMessage(int fd, char* reqStr)
 	{
 		goto fail;
 	}
-	const char* reqNameStr = s;
 
-	int reqType;
-
-	if ((reqType = getReqType(reqNameStr)) == REQ_TYPE_INVALID)
+	const int reqType = getReqType(s);
+	if (reqType == REQ_TYPE_INVALID)
 	{
 		goto fail;
 	}
@@ -365,12 +381,29 @@ static int handleMessage(int fd, char* reqStr)
 	}
 
 
-	// Right now all requests are "get wind" requests, so just handle them directly here.
 	char buf[MSG_BUF_SIZE];
 	proteus_GeoPos pos = { values[0].d, values[1].d };
-	proteus_Weather wx;
-	proteus_Weather_get(&pos, &wx, true);
-	snprintf(buf, MSG_BUF_SIZE, "wind,%f,%f,%f,%f\n", pos.lat, pos.lon, wx.wind.angle, wx.wind.mag);
+
+	switch (reqType)
+	{
+		case REQ_TYPE_GET_WIND:
+			populateWindResponse(buf, MSG_BUF_SIZE, &pos, false);
+			break;
+		case REQ_TYPE_GET_WIND_GUST:
+			populateWindResponse(buf, MSG_BUF_SIZE, &pos, true);
+			break;
+		case REQ_TYPE_GET_OCEAN_CURRENT:
+			populateOceanResponse(buf, MSG_BUF_SIZE, &pos, false);
+			break;
+		case REQ_TYPE_GET_SEA_ICE:
+			populateOceanResponse(buf, MSG_BUF_SIZE, &pos, true);
+			break;
+		case REQ_TYPE_GET_WAVE_HEIGHT:
+			populateWaveResponse(buf, MSG_BUF_SIZE, &pos);
+			break;
+		default:
+			goto fail;
+	}
 
 	const int bl = strlen(buf);
 	int wt = 0;
@@ -407,9 +440,25 @@ fail:
 
 static int getReqType(const char* s)
 {
-	if (strncmp(REQ_STR_GET_WIND, s, strlen(REQ_STR_GET_WIND)) == 0)
+	if (strncmp(REQ_STR_GET_WIND, s, strlen(s)) == 0)
 	{
 		return REQ_TYPE_GET_WIND;
+	}
+	else if (strncmp(REQ_STR_GET_WIND_GUST, s, strlen(s)) == 0)
+	{
+		return REQ_TYPE_GET_WIND_GUST;
+	}
+	else if (strncmp(REQ_STR_GET_OCEAN_CURRENT, s, strlen(s)) == 0)
+	{
+		return REQ_TYPE_GET_OCEAN_CURRENT;
+	}
+	else if (strncmp(REQ_STR_GET_SEA_ICE, s, strlen(s)) == 0)
+	{
+		return REQ_TYPE_GET_SEA_ICE;
+	}
+	else if (strncmp(REQ_STR_GET_WAVE_HEIGHT, s, strlen(s)) == 0)
+	{
+		return REQ_TYPE_GET_WAVE_HEIGHT;
 	}
 
 	return REQ_TYPE_INVALID;
@@ -420,7 +469,11 @@ static const uint8_t* getReqExpectedValueTypes(int reqType)
 	switch (reqType)
 	{
 		case REQ_TYPE_GET_WIND:
-			return REQ_GET_WIND_VALS;
+		case REQ_TYPE_GET_WIND_GUST:
+		case REQ_TYPE_GET_OCEAN_CURRENT:
+		case REQ_TYPE_GET_SEA_ICE:
+		case REQ_TYPE_GET_WAVE_HEIGHT:
+			return REQ_VALS_LAT_LON;
 	}
 
 	return REQ_VALS_NONE;
@@ -431,6 +484,10 @@ static bool areValuesValidForReqType(int reqType, ReqValue values[REQ_MAX_ARG_CO
 	switch (reqType)
 	{
 		case REQ_TYPE_GET_WIND:
+		case REQ_TYPE_GET_WIND_GUST:
+		case REQ_TYPE_GET_OCEAN_CURRENT:
+		case REQ_TYPE_GET_SEA_ICE:
+		case REQ_TYPE_GET_WAVE_HEIGHT:
 		{
 			return (values[0].d >= -90.0 && values[0].d <= 90.0 &&
 					values[1].d >= -180.0 && values[1].d <= 180.0);
@@ -439,4 +496,53 @@ static bool areValuesValidForReqType(int reqType, ReqValue values[REQ_MAX_ARG_CO
 
 	// All other request types do not use request values and have no restrictions.
 	return true;
+}
+
+static void populateWindResponse(char* buf, size_t bufSize, proteus_GeoPos* pos, bool gust)
+{
+	proteus_Weather wx;
+	proteus_Weather_get(pos, &wx, true);
+
+	snprintf(buf, bufSize, "%s,%f,%f,%f,%f\n",
+			gust ? REQ_STR_GET_WIND_GUST : REQ_STR_GET_WIND,
+			pos->lat,
+			pos->lon,
+			wx.wind.angle,
+			gust ? wx.windGust : wx.wind.mag);
+}
+
+static void populateOceanResponse(char* buf, size_t bufSize, proteus_GeoPos* pos, bool seaIce)
+{
+	proteus_OceanData od;
+	const bool valid = proteus_Ocean_get(pos, &od);
+
+	if (seaIce)
+	{
+		snprintf(buf, bufSize, "%s,%f,%f,%f\n",
+				REQ_STR_GET_SEA_ICE,
+				pos->lat,
+				pos->lon,
+				valid ? od.ice : INVALID_DOUBLE_VALUE);
+	}
+	else
+	{
+		snprintf(buf, bufSize, "%s,%f,%f,%f,%f\n",
+				REQ_STR_GET_OCEAN_CURRENT,
+				pos->lat,
+				pos->lon,
+				valid ? od.current.angle : INVALID_DOUBLE_VALUE,
+				valid ? od.current.mag : INVALID_DOUBLE_VALUE);
+	}
+}
+
+static void populateWaveResponse(char* buf, size_t bufSize, proteus_GeoPos* pos)
+{
+	proteus_WaveData wd;
+	const bool valid = proteus_Wave_get(pos, &wd);
+
+	snprintf(buf, bufSize, "%s,%f,%f,%f\n",
+			REQ_STR_GET_WAVE_HEIGHT,
+			pos->lat,
+			pos->lon,
+			valid ? wd.waveHeight : INVALID_DOUBLE_VALUE);
 }
