@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2020 ls4096 <ls4096@8bitbyte.ca>
+ * Copyright (C) 2020-2021 ls4096 <ls4096@8bitbyte.ca>
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Affero General Public License as published by
@@ -39,6 +39,7 @@
 
 
 #define ERRLOG_ID "Logger"
+#define THREAD_NAME "Logger"
 
 #define CSV_LOGGER_DIR_PATH_MAXLEN (4096 - 512)
 #define CSV_LOGGER_LINE_BUF_SIZE (2048)
@@ -113,6 +114,13 @@ int Logger_init(const char* csvLoggerDir, const char* sqliteDbFilename)
 		ERRLOG("Failed to start boat logging thread!");
 		return -1;
 	}
+
+#if defined(_GNU_SOURCE) && defined(__GLIBC__)
+	if (0 != pthread_setname_np(_loggerThread, THREAD_NAME))
+	{
+		ERRLOG1("Couldn't set thread name to %s. Continuing anyway.", THREAD_NAME);
+	}
+#endif
 
 	_init = true;
 	return 0;

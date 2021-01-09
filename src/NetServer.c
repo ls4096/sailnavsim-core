@@ -35,6 +35,7 @@
 
 
 #define ERRLOG_ID "NetServer"
+#define THREAD_NAME "NetServer"
 
 
 #define REQ_TYPE_INVALID		(0)
@@ -111,6 +112,13 @@ int NetServer_init(int port)
 		ERRLOG("Failed to start net server thread!");
 		return -1;
 	}
+
+#if defined(_GNU_SOURCE) && defined(__GLIBC__)
+	if (0 != pthread_setname_np(_netServerThread, THREAD_NAME))
+	{
+		ERRLOG1("Couldn't set thread name to %s. Continuing anyway.", THREAD_NAME);
+	}
+#endif
 
 	return 0;
 }

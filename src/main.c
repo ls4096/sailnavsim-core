@@ -72,7 +72,7 @@
 #define PERF_TEST_MAX_BOAT_COUNT (204800)
 
 
-static const char* VERSION_STRING = "SailNavSim version 1.6.1 (" __DATE__ " " __TIME__ ")";
+static const char* VERSION_STRING = "SailNavSim version 1.6.2-dev (" __DATE__ " " __TIME__ ")";
 
 
 static int parseArgs(int argc, char** argv);

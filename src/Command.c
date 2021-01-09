@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2020 ls4096 <ls4096@8bitbyte.ca>
+ * Copyright (C) 2020-2021 ls4096 <ls4096@8bitbyte.ca>
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Affero General Public License as published by
@@ -28,6 +28,7 @@
 
 
 #define ERRLOG_ID "Command"
+#define THREAD_NAME "Command"
 
 
 static const char* CMD_ACTION_STR_STOP = "stop";
@@ -84,6 +85,13 @@ int Command_init(const char* cmdsInputPath)
 		ERRLOG("Failed to start command processing thread!");
 		return -1;
 	}
+
+#if defined(_GNU_SOURCE) && defined(__GLIBC__)
+	if (0 != pthread_setname_np(_commandThread, THREAD_NAME))
+	{
+		ERRLOG1("Couldn't set thread name to %s. Continuing anyway.", THREAD_NAME);
+	}
+#endif
 
 	return 0;
 }
