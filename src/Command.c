@@ -78,9 +78,13 @@ int Command_init(const char* cmdsInputPath)
 
 	_cmdsInputPath = strdup(cmdsInputPath);
 
-	pthread_mutex_init(&_cmdsLock, 0);
+	if (0 != pthread_mutex_init(&_cmdsLock, 0))
+	{
+		ERRLOG("Failed to init cmds mutex!");
+		return -4;
+	}
 
-	if (pthread_create(&_commandThread, 0, &commandThreadMain, 0) != 0)
+	if (0 != pthread_create(&_commandThread, 0, &commandThreadMain, 0))
 	{
 		ERRLOG("Failed to start command processing thread!");
 		return -1;
@@ -99,7 +103,12 @@ int Command_init(const char* cmdsInputPath)
 Command* Command_next()
 {
 	Command* cmd = 0;
-	pthread_mutex_lock(&_cmdsLock);
+
+	if (0 != pthread_mutex_lock(&_cmdsLock))
+	{
+		ERRLOG("next: Failed to lock cmds mutex!");
+		return 0;
+	}
 
 	if (_cmds != 0)
 	{
@@ -108,7 +117,11 @@ Command* Command_next()
 		cmd->next = 0;
 	}
 
-	pthread_mutex_unlock(&_cmdsLock);
+	if (0 != pthread_mutex_unlock(&_cmdsLock))
+	{
+		ERRLOG("next: Failed to unlock cmds mutex!");
+	}
+
 	return cmd;
 }
 
@@ -275,7 +288,11 @@ static bool areValuesValidForAction(int action, CommandValue values[COMMAND_MAX_
 
 static void queueCmd(Command* cmd)
 {
-	pthread_mutex_lock(&_cmdsLock);
+	if (0 != pthread_mutex_lock(&_cmdsLock))
+	{
+		ERRLOG("queueCmd: Failed to lock cmds mutex!");
+		return;
+	}
 
 	if (_cmds == 0)
 	{
@@ -288,5 +305,8 @@ static void queueCmd(Command* cmd)
 
 	_cmdsLast = cmd;
 
-	pthread_mutex_unlock(&_cmdsLock);
+	if (0 != pthread_mutex_unlock(&_cmdsLock))
+	{
+		ERRLOG("queueCmd: Failed to unlock cmds mutex!");
+	}
 }

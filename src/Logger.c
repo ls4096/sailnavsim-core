@@ -95,8 +95,17 @@ int Logger_init(const char* csvLoggerDir, const char* sqliteDbFilename)
 
 	_csvLoggerDir = strdup(csvLoggerDir);
 
-	pthread_mutex_init(&_logsLock, 0);
-	pthread_cond_init(&_logsCond, 0);
+	if (0 != pthread_mutex_init(&_logsLock, 0))
+	{
+		ERRLOG("Failed to init logs mutex!");
+		return -4;
+	}
+
+	if (0 != pthread_cond_init(&_logsCond, 0))
+	{
+		ERRLOG("Failed to init logs condvar!");
+		return -4;
+	}
 
 	int rc;
 
@@ -201,7 +210,12 @@ void Logger_writeLogs(LogEntry* logEntries, unsigned int count)
 	l->count = count;
 	l->next = 0;
 
-	pthread_mutex_lock(&_logsLock);
+	if (0 != pthread_mutex_lock(&_logsLock))
+	{
+		ERRLOG("writeLogs: Failed to lock logs mutex!");
+		free(l);
+		return;
+	}
 
 	if (_logs == 0)
 	{
@@ -214,8 +228,15 @@ void Logger_writeLogs(LogEntry* logEntries, unsigned int count)
 
 	_logsLast = l;
 
-	pthread_cond_signal(&_logsCond);
-	pthread_mutex_unlock(&_logsLock);
+	if (0 != pthread_cond_signal(&_logsCond))
+	{
+		ERRLOG("writeLogs: Failed to signal condvar!");
+	}
+
+	if (0 != pthread_mutex_unlock(&_logsLock))
+	{
+		ERRLOG("writeLogs: Failed to unlock logs mutex!");
+	}
 }
 
 
@@ -223,10 +244,18 @@ static void* loggerThreadMain(void* arg)
 {
 	for (;;)
 	{
-		pthread_mutex_lock(&_logsLock);
+		if (0 != pthread_mutex_lock(&_logsLock))
+		{
+			ERRLOG("loggerThreadMain: Failed to lock logs mutex!");
+			continue;
+		}
+
 		while (_logs == 0)
 		{
-			pthread_cond_wait(&_logsCond, &_logsLock);
+			if (0 != pthread_cond_wait(&_logsCond, &_logsLock))
+			{
+				ERRLOG("loggerThreadMain: Failed to wait on condvar!");
+			}
 		}
 
 		while (_logs != 0)
@@ -237,7 +266,10 @@ static void* loggerThreadMain(void* arg)
 
 			_logs = l->next;
 
-			pthread_mutex_unlock(&_logsLock);
+			if (0 != pthread_mutex_unlock(&_logsLock))
+			{
+				ERRLOG("loggerThreadMain: Failed to unlock logs mutex!");
+			}
 
 			writeLogsSql(entries, count);
 			writeLogsCsv(entries, count);
@@ -245,10 +277,16 @@ static void* loggerThreadMain(void* arg)
 			free(entries);
 			free(l);
 
-			pthread_mutex_lock(&_logsLock);
+			if (0 != pthread_mutex_lock(&_logsLock))
+			{
+				ERRLOG("loggerThreadMain: Failed to lock logs mutex!");
+			}
 		}
 
-		pthread_mutex_unlock(&_logsLock);
+		if (0 != pthread_mutex_unlock(&_logsLock))
+		{
+			ERRLOG("loggerThreadMain: Failed to unlock logs mutex!");
+		}
 	}
 
 	return 0;

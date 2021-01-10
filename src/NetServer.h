@@ -18,7 +18,7 @@
 #define _NetServer_h_
 
 
-int NetServer_init(int port);
+int NetServer_init(unsigned int port, unsigned int workerThreads);
 
 
 #endif // _NetServer_h_

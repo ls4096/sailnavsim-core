@@ -347,6 +347,8 @@ static void stopBoat(Boat* b)
 {
 	b->stop = true;
 	b->v.mag = 0.0;
+
+	// FIXME: Should probably also set Boat.started to 0 in the database (if we're using it).
 }
 
 static double oceanIceSpeedAdjustmentFactor(bool valid, const proteus_OceanData* od)

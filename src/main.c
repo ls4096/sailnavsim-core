@@ -45,6 +45,8 @@
 // Minimum value: 2; a value less than 2 results in no boat logs being written
 #define ITERATIONS_PER_LOG (60)
 
+#define NETSERVER_THREAD_COUNT (5)
+
 
 #define WX_DATA_DIR_PATH_F006 "wx_data_f006/"
 #define WX_DATA_DIR_PATH_F009 "wx_data_f009/"
@@ -72,7 +74,7 @@
 #define PERF_TEST_MAX_BOAT_COUNT (204800)
 
 
-static const char* VERSION_STRING = "SailNavSim version 1.6.2-dev (" __DATE__ " " __TIME__ ")";
+static const char* VERSION_STRING = "SailNavSim version 1.6.2 (" __DATE__ " " __TIME__ ")";
 
 
 static int parseArgs(int argc, char** argv);
@@ -195,7 +197,7 @@ int main(int argc, char** argv)
 	{
 		signal(SIGPIPE, SIG_IGN);
 
-		if (NetServer_init(_netPort) != 0)
+		if (NetServer_init(_netPort, NETSERVER_THREAD_COUNT) != 0)
 		{
 			ERRLOG("Failed to init net server!");
 			return -1;
