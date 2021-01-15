@@ -10,7 +10,9 @@ A global sailing navigation simulator, using real-world geographic information a
 ### Tested build/run environments
 
 - Ubuntu 18.04, x86-64
+- Ubuntu 20.04, x86-64
 - Debian 9 (Stretch), x86-64
+- Alpine Linux 3.13, x86-64
 
 ## How to build
 

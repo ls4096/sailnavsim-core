@@ -146,6 +146,7 @@ static void* commandThreadMain(void* arg)
 			handleCmd(buf);
 		}
 
+		clearerr(f);
 		sleep(1);
 	}
 
