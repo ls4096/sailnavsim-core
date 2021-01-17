@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2020 ls4096 <ls4096@8bitbyte.ca>
+ * Copyright (C) 2020-2021 ls4096 <ls4096@8bitbyte.ca>
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Affero General Public License as published by
@@ -35,8 +35,8 @@
 #define MOVE_TO_WATER_DISTANCE (100)
 
 
-static void updateCourse(Boat* b, double s);
-static void updateVelocity(Boat* b, double s, const proteus_Weather* wx, bool odv, const proteus_OceanData* od, bool wdv, const proteus_WaveData* wd);
+static void updateCourse(Boat* b);
+static void updateVelocity(Boat* b, const proteus_Weather* wx, bool odv, const proteus_OceanData* od, bool wdv, const proteus_WaveData* wd);
 static void updateDamage(Boat* b, double windGust, bool takeDamage);
 static void stopBoat(Boat* b);
 static double oceanIceSpeedAdjustmentFactor(bool valid, const proteus_OceanData* od);
@@ -77,7 +77,7 @@ Boat* Boat_new(double lat, double lon, int boatType, int boatFlags)
 	return boat;
 }
 
-void Boat_advance(Boat* b, double s)
+void Boat_advance(Boat* b)
 {
 	if (b->stop)
 	{
@@ -123,7 +123,7 @@ void Boat_advance(Boat* b, double s)
 			{
 				// Water ahead, so proceed at fixed speed toward it.
 				b->v.angle = b->desiredCourse;
-				b->v.mag = s * 0.5;
+				b->v.mag = 0.5;
 
 				proteus_GeoPos_advance(&b->pos, &b->v);
 			}
@@ -169,21 +169,19 @@ void Boat_advance(Boat* b, double s)
 		updateDamage(b, wx.windGust, true);
 
 		// Update course, if necessary.
-		updateCourse(b, s);
+		updateCourse(b);
 
 		// Update boat velocity.
-		updateVelocity(b, s, &wx, oceanDataValid, &od, waveDataValid, &wd);
+		updateVelocity(b, &wx, oceanDataValid, &od, waveDataValid, &wd);
 	}
 
 	// Advance position.
 	proteus_GeoVec v = b->v;
-	v.mag *= s;
 	proteus_GeoPos_advance(&b->pos, &v);
 
 	// Add ocean currents (if applicable).
 	if (oceanDataValid)
 	{
-		od.current.mag *= s;
 		proteus_GeoPos_advance(&b->pos, &od.current);
 
 		// Distance travelled increases by the magnitude of the vector sum
@@ -230,12 +228,12 @@ bool Boat_isHeadingTowardWater(Boat* b)
 }
 
 
-static void updateCourse(Boat* b, double s)
+static void updateCourse(Boat* b)
 {
 	const double courseDiff = proteus_Compass_diff(b->v.angle, b->desiredCourse);
 	const double courseChangeRate = BoatWindResponse_getCourseChangeRate(b->boatType);
 
-	if (fabs(courseDiff) <= courseChangeRate * s)
+	if (fabs(courseDiff) <= courseChangeRate)
 	{
 		// Desired course is close enough to current course.
 		b->v.angle = b->desiredCourse;
@@ -246,12 +244,12 @@ static void updateCourse(Boat* b, double s)
 	if (courseDiff < 0.0 && courseDiff >= -179.0)
 	{
 		// Turn left.
-		b->v.angle -= (courseChangeRate * s);
+		b->v.angle -= courseChangeRate;
 	}
 	else if (courseDiff > 0.0 && courseDiff <= 179.0)
 	{
 		// Turn right.
-		b->v.angle += (courseChangeRate * s);
+		b->v.angle += courseChangeRate;
 	}
 	else
 	{
@@ -260,12 +258,12 @@ static void updateCourse(Boat* b, double s)
 		if (rand_r(&_randSeed) % 2 == 0)
 		{
 			// Turn left.
-			b->v.angle -= (courseChangeRate * s);
+			b->v.angle -= courseChangeRate;
 		}
 		else
 		{
 			// Turn right.
-			b->v.angle += (courseChangeRate * s);
+			b->v.angle += courseChangeRate;
 		}
 	}
 
@@ -279,7 +277,7 @@ static void updateCourse(Boat* b, double s)
 	}
 }
 
-static void updateVelocity(Boat* b, double s, const proteus_Weather* wx, bool odv, const proteus_OceanData* od, bool wdv, const proteus_WaveData* wd)
+static void updateVelocity(Boat* b, const proteus_Weather* wx, bool odv, const proteus_OceanData* od, bool wdv, const proteus_WaveData* wd)
 {
 	const proteus_GeoVec* windVec = &wx->wind;
 
@@ -292,7 +290,7 @@ static void updateVelocity(Boat* b, double s, const proteus_Weather* wx, bool od
 
 	const double speedChangeResponse = BoatWindResponse_getSpeedChangeResponse(b->boatType);
 
-	b->v.mag = ((speedChangeResponse * b->v.mag) + (s * spd)) / (speedChangeResponse + s);
+	b->v.mag = ((speedChangeResponse * b->v.mag) + spd) / (speedChangeResponse + 1.0);
 }
 
 #define KNOTS_IN_M_PER_S (1.943844)

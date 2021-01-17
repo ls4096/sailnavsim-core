@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2020 ls4096 <ls4096@8bitbyte.ca>
+ * Copyright (C) 2020-2021 ls4096 <ls4096@8bitbyte.ca>
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Affero General Public License as published by
@@ -50,7 +50,7 @@ typedef struct
 int Boat_init();
 
 Boat* Boat_new(double lat, double lon, int boatType, int boatFlags);
-void Boat_advance(Boat* b, double s);
+void Boat_advance(Boat* b);
 bool Boat_isHeadingTowardWater(Boat* b);
 
 

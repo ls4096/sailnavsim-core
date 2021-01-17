@@ -42,6 +42,7 @@
 #define ERRLOG_ID "Main"
 
 // How often to write boat logs
+// One iteration always covers one second in the simulation.
 // Minimum value: 2; a value less than 2 results in no boat logs being written
 #define ITERATIONS_PER_LOG (60)
 
@@ -74,7 +75,7 @@
 #define PERF_TEST_MAX_BOAT_COUNT (204800)
 
 
-static const char* VERSION_STRING = "SailNavSim version 1.7.0-dev (" __DATE__ " " __TIME__ ")";
+static const char* VERSION_STRING = "SailNavSim version 1.7.0 (" __DATE__ " " __TIME__ ")";
 
 
 static int parseArgs(int argc, char** argv);
@@ -246,7 +247,7 @@ int main(int argc, char** argv)
 			BoatEntry* e = boats;
 			while (e)
 			{
-				Boat_advance(e->boat, 1.0 /* seconds per iteration */);
+				Boat_advance(e->boat);
 
 				if (doLog)
 				{
