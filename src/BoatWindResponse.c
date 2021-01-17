@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2020 ls4096 <ls4096@8bitbyte.ca>
+ * Copyright (C) 2020-2021 ls4096 <ls4096@8bitbyte.ca>
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Affero General Public License as published by
@@ -366,6 +366,42 @@ static const double IMOCA_60_RESPONSE[] =
 #define IMOCA_60_WAVE_EFFECT_RESISTANCE (160.0)
 
 
+/**
+ * Wind response factor lookup table for the "Improvised Lifeboat" sailing vessel
+ */
+static const double IMPROVISED_LIFEBOAT_RESPONSE[] =
+{
+//	1	2	4	8	12	16	24	m/s
+
+	-0.10,	-0.10,	-0.10,	-0.10,	-0.10,	-0.10,	-0.10,	// 0 deg
+	-0.08,	-0.08,	-0.08,	-0.08,	-0.08,	-0.08,	-0.08,	// 10 deg
+	-0.05,	-0.05,	-0.05,	-0.05,	-0.05,	-0.05,	-0.05,	// 20 deg
+	0.000,	0.000,	0.000,	0.000,	0.000,	0.000,	0.000,	// 30 deg
+	0.100,	0.080,	0.040,	0.022,	0.015,	0.012,	0.008,	// 40 deg
+	0.150,	0.120,	0.070,	0.038,	0.027,	0.021,	0.015,	// 50 deg
+	0.190,	0.160,	0.110,	0.062,	0.045,	0.036,	0.025,	// 60 deg
+	0.290,	0.220,	0.140,	0.080,	0.060,	0.048,	0.033,	// 70 deg
+	0.370,	0.260,	0.170,	0.105,	0.082,	0.064,	0.044,	// 80 deg
+	0.470,	0.290,	0.190,	0.125,	0.100,	0.080,	0.055,	// 90 deg
+	0.490,	0.320,	0.210,	0.150,	0.120,	0.098,	0.068,	// 100 deg
+	0.500,	0.360,	0.240,	0.180,	0.140,	0.120,	0.082,	// 110 deg
+	0.490,	0.360,	0.260,	0.205,	0.160,	0.140,	0.096,	// 120 deg
+	0.460,	0.320,	0.260,	0.220,	0.175,	0.148,	0.104,	// 130 deg
+	0.440,	0.280,	0.240,	0.210,	0.185,	0.157,	0.110,	// 140 deg
+	0.400,	0.245,	0.210,	0.190,	0.165,	0.150,	0.109,	// 150 deg
+	0.335,	0.205,	0.175,	0.160,	0.140,	0.132,	0.102,	// 160 deg
+	0.260,	0.170,	0.145,	0.130,	0.120,	0.110,	0.090,	// 170 deg
+	0.150,	0.120,	0.120,	0.110,	0.104,	0.095,	0.079,	// 180 deg
+
+	0.00,	0.00,	0.00,	0.00,	0.00,	0.00,	0.00,	// Values on these two lines are never used, but we add them
+	0.00							// here to prevent reading garbage in calculations below.
+};
+
+#define IMPROVISED_LIFEBOAT_COURSE_CHANGE_RATE (2.5)
+#define IMPROVISED_LIFEBOAT_BOAT_INERTIA (25.0)
+#define IMPROVISED_LIFEBOAT_WAVE_EFFECT_RESISTANCE (50.0)
+
+
 static const double* WIND_RESPONSES[] = {
 	SAILNAVSIM_CLASSIC_RESPONSE, // 0
 	SEASCAPE_18_RESPONSE, // 1
@@ -375,7 +411,8 @@ static const double* WIND_RESPONSES[] = {
 	SUPER_MAXI_SCALLYWAG_RESPONSE, // 5
 	BRIGANTINE_140_RESPONSE, // 6
 	MAXI_TRIMARAN_RESPONSE, // 7
-	IMOCA_60_RESPONSE // 8
+	IMOCA_60_RESPONSE, // 8
+	IMPROVISED_LIFEBOAT_RESPONSE // 9
 };
 
 static const double COURSE_CHANGE_RATES[] = {
@@ -387,7 +424,8 @@ static const double COURSE_CHANGE_RATES[] = {
 	SUPER_MAXI_SCALLYWAG_COURSE_CHANGE_RATE, // 5
 	BRIGANTINE_140_COURSE_CHANGE_RATE, // 6
 	MAXI_TRIMARAN_COURSE_CHANGE_RATE, // 7
-	IMOCA_60_COURSE_CHANGE_RATE // 8
+	IMOCA_60_COURSE_CHANGE_RATE, // 8
+	IMPROVISED_LIFEBOAT_COURSE_CHANGE_RATE // 9
 };
 
 static const double BOAT_INERTIAS[] = {
@@ -399,7 +437,8 @@ static const double BOAT_INERTIAS[] = {
 	SUPER_MAXI_SCALLYWAG_BOAT_INERTIA, // 5
 	BRIGANTINE_140_BOAT_INERTIA, // 6
 	MAXI_TRIMARAN_BOAT_INERTIA, // 7
-	IMOCA_60_BOAT_INERTIA // 8
+	IMOCA_60_BOAT_INERTIA, // 8
+	IMPROVISED_LIFEBOAT_BOAT_INERTIA // 9
 };
 
 static const double WAVE_EFFECT_RESISTANCES[] = {
@@ -411,10 +450,11 @@ static const double WAVE_EFFECT_RESISTANCES[] = {
 	SUPER_MAXI_SCALLYWAG_WAVE_EFFECT_RESISTANCE, // 5
 	BRIGANTINE_140_WAVE_EFFECT_RESISTANCE, // 6
 	MAXI_TRIMARAN_WAVE_EFFECT_RESISTANCE, // 7
-	IMOCA_60_WAVE_EFFECT_RESISTANCE // 8
+	IMOCA_60_WAVE_EFFECT_RESISTANCE, // 8
+	IMPROVISED_LIFEBOAT_WAVE_EFFECT_RESISTANCE // 9
 };
 
-static const int BOAT_TYPE_MAX = 8;
+static const int BOAT_TYPE_MAX = 9;
 
 
 double BoatWindResponse_getBoatSpeed(double windSpd, double angleFromWind, int boatType)
