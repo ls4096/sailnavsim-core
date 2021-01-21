@@ -161,7 +161,9 @@ void Boat_advance(Boat* b)
 		updateDamage(b, wx.windGust, false);
 
 		// NOTE: While sails are down, we intentionally do not take into account the boat damage speed adjustment factor.
-		b->v.mag = windVec->mag * 0.1 * oceanIceSpeedAdjustmentFactor(oceanDataValid, &od);
+		b->v.mag = windVec->mag * 0.1 *
+			oceanIceSpeedAdjustmentFactor(oceanDataValid, &od) *
+			waveSpeedAdjustmentFactor(b, waveDataValid, &wd);
 	}
 	else
 	{
