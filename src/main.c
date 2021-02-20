@@ -75,7 +75,7 @@
 #define PERF_TEST_MAX_BOAT_COUNT (204800)
 
 
-static const char* VERSION_STRING = "SailNavSim version 1.7.2 (" __DATE__ " " __TIME__ ")";
+static const char* VERSION_STRING = "SailNavSim version 1.8.0 (" __DATE__ " " __TIME__ ")";
 
 
 static int parseArgs(int argc, char** argv);
@@ -243,6 +243,11 @@ int main(int argc, char** argv)
 
 			int ilog = 0;
 
+			if (BoatRegistry_OK != BoatRegistry_wrlock())
+			{
+				ERRLOG("Failed to write-lock BoatRegistry lock for boat advance!");
+			}
+
 			// Advance boats.
 			BoatEntry* e = boats;
 			while (e)
@@ -256,6 +261,11 @@ int main(int argc, char** argv)
 				}
 
 				e = e->next;
+			}
+
+			if (BoatRegistry_OK != BoatRegistry_unlock())
+			{
+				ERRLOG("Failed to unlock BoatRegistry lock after boat advance!");
 			}
 
 			if (doLog)
@@ -343,6 +353,11 @@ int main(int argc, char** argv)
 		} // End of performance testing control block.
 
 
+		if (BoatRegistry_OK != BoatRegistry_wrlock())
+		{
+			ERRLOG("Failed to write-lock BoatRegistry lock for commands!");
+		}
+
 		// Handle pending commands.
 		unsigned int cmdCount = 0;
 		Command* cmd;
@@ -354,6 +369,11 @@ int main(int argc, char** argv)
 			free(cmd);
 
 			cmdCount++;
+		}
+
+		if (BoatRegistry_OK != BoatRegistry_unlock())
+		{
+			ERRLOG("Failed to unlock BoatRegistry lock after commands!");
 		}
 
 

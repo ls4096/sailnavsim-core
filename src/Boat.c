@@ -60,6 +60,8 @@ Boat* Boat_new(double lat, double lon, int boatType, int boatFlags)
 	boat->pos.lon = lon;
 	boat->v.angle = 0.0;
 	boat->v.mag = 0.0;
+	boat->vGround.angle = 0.0;
+	boat->vGround.mag = 0.0;
 
 	boat->desiredCourse = 0.0;
 	boat->distanceTravelled = 0.0;
@@ -125,7 +127,9 @@ void Boat_advance(Boat* b)
 				b->v.angle = b->desiredCourse;
 				b->v.mag = 0.5;
 
-				proteus_GeoPos_advance(&b->pos, &b->v);
+				b->vGround = b->v;
+
+				proteus_GeoPos_advance(&b->pos, &b->vGround);
 			}
 			else
 			{
@@ -177,27 +181,34 @@ void Boat_advance(Boat* b)
 		updateVelocity(b, &wx, oceanDataValid, &od, waveDataValid, &wd);
 	}
 
-	// Advance position.
-	proteus_GeoVec v = b->v;
-	proteus_GeoPos_advance(&b->pos, &v);
+	// Compute "over ground" vector, based on ocean currents (if available).
+	b->vGround = b->v;
 
-	// Add ocean currents (if applicable).
 	if (oceanDataValid)
 	{
-		proteus_GeoPos_advance(&b->pos, &od.current);
-
-		// Distance travelled increases by the magnitude of the vector sum
-		// of the velocity over water and the ocean current.
-		proteus_GeoVec_add(&od.current, &v);
-		b->distanceTravelled += od.current.mag;
+		// Ocean data is valid, so add ocean current vector to "over ground" vector.
+		proteus_GeoVec_add(&b->vGround, &od.current);
 	}
-	else
+	else if (b->vGround.mag < 0.0)
 	{
-		// Distance travelled increases by just the distance over water.
-		b->distanceTravelled += fabs(v.mag);
+		// Ocean data is not valid, but we still need to ensure that the "over ground" vector has positive magnitude.
+		b->vGround.mag = -b->vGround.mag;
+
+		// Negating the magnitude (to make it positive) means we need to flip the angle 180 degrees.
+		b->vGround.angle += 180.0;
+		if (b->vGround.angle >= 360.0)
+		{
+			b->vGround.angle -= 360.0;
+		}
 	}
 
-	// Check if we're still in water.
+	// Advance boat by "over ground" vector.
+	proteus_GeoPos_advance(&b->pos, &b->vGround);
+
+	// Accumulate distance travelled.
+	b->distanceTravelled += b->vGround.mag;
+
+	// Finally, check if we're still in water.
 	if (!proteus_GeoInfo_isWater(&b->pos))
 	{
 		stopBoat(b);
@@ -347,6 +358,8 @@ static void stopBoat(Boat* b)
 {
 	b->stop = true;
 	b->v.mag = 0.0;
+
+	b->vGround = b->v;
 
 	// FIXME: Should probably also set Boat.started to 0 in the database (if we're using it).
 }

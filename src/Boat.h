@@ -31,6 +31,7 @@ typedef struct
 {
 	proteus_GeoPos pos;
 	proteus_GeoVec v;
+	proteus_GeoVec vGround;
 
 	double desiredCourse;
 	double distanceTravelled;

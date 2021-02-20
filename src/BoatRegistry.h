@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2020 ls4096 <ls4096@8bitbyte.ca>
+ * Copyright (C) 2020-2021 ls4096 <ls4096@8bitbyte.ca>
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Affero General Public License as published by
@@ -20,9 +20,10 @@
 #include "Boat.h"
 
 
-#define BoatRegistry_OK (0)
-#define BoatRegistry_EXISTS (-1)
-#define BoatRegistry_NOTEXISTS (-2)
+#define BoatRegistry_OK		(0)
+#define BoatRegistry_EXISTS	(-1)
+#define BoatRegistry_NOTEXISTS	(-2)
+#define BoatRegistry_FAILED	(-3)
 
 
 typedef struct BoatEntry BoatEntry;
@@ -41,6 +42,10 @@ int BoatRegistry_add(Boat* boat, const char* name);
 Boat* BoatRegistry_get(const char* name);
 Boat* BoatRegistry_remove(const char* name);
 BoatEntry* BoatRegistry_getAllBoats(unsigned int* boatCount);
+
+int BoatRegistry_rdlock();
+int BoatRegistry_wrlock();
+int BoatRegistry_unlock();
 
 
 #endif // _BoatRegistry_h_

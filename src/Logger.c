@@ -153,40 +153,11 @@ void Logger_fillLogEntry(Boat* boat, const char* name, time_t t, LogEntry* log)
 
 	const bool isWater = proteus_GeoInfo_isWater(&boat->pos);
 
-	proteus_GeoVec boatWithCurrent;
-
-	boatWithCurrent.angle = boat->v.angle;
-	boatWithCurrent.mag = boat->v.mag;
-
-	if (!boat->stop)
-	{
-		// Boat is not stopped.
-		if (odValid)
-		{
-			// Ocean data is valid, so add ocean data current.
-			proteus_GeoVec_add(&boatWithCurrent, &od.current);
-		}
-		else
-		{
-			// Ocean data is not valid, so just ensure that the vector has positive magnitude.
-			if (boatWithCurrent.mag < 0.0)
-			{
-				boatWithCurrent.mag = -boatWithCurrent.mag;
-
-				boatWithCurrent.angle += 180.0;
-				if (boatWithCurrent.angle >= 360.0)
-				{
-					boatWithCurrent.angle -= 360.0;
-				}
-			}
-		}
-	}
-
 	log->time = t;
 	log->boatName = name;
 	log->boatPos = boat->pos;
 	log->boatVecWater = boat->v;
-	log->boatVecGround = boatWithCurrent;
+	log->boatVecGround = boat->vGround;
 	log->distanceTravelled = boat->distanceTravelled;
 	log->damage = boat->damage;
 	log->wx = wx;

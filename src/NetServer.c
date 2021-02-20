@@ -31,6 +31,7 @@
 #include <proteus/Weather.h>
 
 #include "NetServer.h"
+#include "BoatRegistry.h"
 #include "ErrLog.h"
 
 
@@ -45,28 +46,33 @@
 #define REQ_TYPE_GET_OCEAN_CURRENT	(3)
 #define REQ_TYPE_GET_SEA_ICE		(4)
 #define REQ_TYPE_GET_WAVE_HEIGHT	(5)
+#define REQ_TYPE_GET_BOAT_DATA		(6)
 
-static const char* REQ_STR_GET_WIND = "wind";
-static const char* REQ_STR_GET_WIND_GUST = "wind_gust";
-static const char* REQ_STR_GET_OCEAN_CURRENT = "ocean_current";
-static const char* REQ_STR_GET_SEA_ICE = "sea_ice";
-static const char* REQ_STR_GET_WAVE_HEIGHT = "wave_height";
+static const char* REQ_STR_GET_WIND =		"wind";
+static const char* REQ_STR_GET_WIND_GUST =	"wind_gust";
+static const char* REQ_STR_GET_OCEAN_CURRENT =	"ocean_current";
+static const char* REQ_STR_GET_SEA_ICE =	"sea_ice";
+static const char* REQ_STR_GET_WAVE_HEIGHT =	"wave_height";
+static const char* REQ_STR_GET_BOAT_DATA =	"bd";
 
 
 #define REQ_MAX_ARG_COUNT (2)
 
-#define REQ_VAL_NONE (0)
-#define REQ_VAL_INT (1)
-#define REQ_VAL_DOUBLE (2)
+#define REQ_VAL_NONE	(0)
+#define REQ_VAL_INT	(1)
+#define REQ_VAL_DOUBLE	(2)
+#define REQ_VAL_STRING	(3)
 
 static const uint8_t REQ_VALS_NONE[REQ_MAX_ARG_COUNT] = { REQ_VAL_NONE, REQ_VAL_NONE };
 
 static const uint8_t REQ_VALS_LAT_LON[REQ_MAX_ARG_COUNT] = { REQ_VAL_DOUBLE, REQ_VAL_DOUBLE };
+static const uint8_t REQ_VALS_BOAT_DATA[REQ_MAX_ARG_COUNT] = { REQ_VAL_STRING, REQ_VAL_NONE };
 
 typedef union
 {
 	int i;
 	double d;
+	const char* s;
 } ReqValue;
 
 
@@ -89,6 +95,7 @@ static bool areValuesValidForReqType(int reqType, ReqValue values[REQ_MAX_ARG_CO
 static void populateWindResponse(char* buf, size_t bufSize, proteus_GeoPos* pos, bool gust);
 static void populateOceanResponse(char* buf, size_t bufSize, proteus_GeoPos* pos, bool seaIce);
 static void populateWaveResponse(char* buf, size_t bufSize, proteus_GeoPos* pos);
+static void populateBoatDataResponse(char* buf, size_t bufSize, const char* key);
 
 
 static pthread_t _netServerThread;
@@ -569,6 +576,7 @@ static int handleMessage(int fd, char* reqStr)
 
 			case REQ_VAL_INT:
 			case REQ_VAL_DOUBLE:
+			case REQ_VAL_STRING:
 				if ((s = strtok_r(0, ",", &t)) == 0)
 				{
 					goto fail;
@@ -578,9 +586,13 @@ static int handleMessage(int fd, char* reqStr)
 				{
 					values[i].i = strtol(s, 0, 10);
 				}
-				else
+				else if (vals[i] == REQ_VAL_DOUBLE)
 				{
 					values[i].d = strtod(s, 0);
+				}
+				else
+				{
+					values[i].s = s;
 				}
 
 				break;
@@ -615,6 +627,9 @@ static int handleMessage(int fd, char* reqStr)
 			break;
 		case REQ_TYPE_GET_WAVE_HEIGHT:
 			populateWaveResponse(buf, MSG_BUF_SIZE, &pos);
+			break;
+		case REQ_TYPE_GET_BOAT_DATA:
+			populateBoatDataResponse(buf, MSG_BUF_SIZE, values[0].s);
 			break;
 		default:
 			goto fail;
@@ -682,6 +697,10 @@ static int getReqType(const char* s)
 	{
 		return REQ_TYPE_GET_WAVE_HEIGHT;
 	}
+	else if (strncmp(REQ_STR_GET_BOAT_DATA, s, strlen(s)) == 0)
+	{
+		return REQ_TYPE_GET_BOAT_DATA;
+	}
 
 	return REQ_TYPE_INVALID;
 }
@@ -696,6 +715,8 @@ static const uint8_t* getReqExpectedValueTypes(int reqType)
 		case REQ_TYPE_GET_SEA_ICE:
 		case REQ_TYPE_GET_WAVE_HEIGHT:
 			return REQ_VALS_LAT_LON;
+		case REQ_TYPE_GET_BOAT_DATA:
+			return REQ_VALS_BOAT_DATA;
 	}
 
 	return REQ_VALS_NONE;
@@ -716,7 +737,7 @@ static bool areValuesValidForReqType(int reqType, ReqValue values[REQ_MAX_ARG_CO
 		}
 	}
 
-	// All other request types do not use request values and have no restrictions.
+	// All other request types either do not use request values or have no particular restrictions.
 	return true;
 }
 
@@ -770,4 +791,49 @@ static void populateWaveResponse(char* buf, size_t bufSize, proteus_GeoPos* pos)
 			pos->lat,
 			pos->lon,
 			valid ? wd.waveHeight : INVALID_DOUBLE_VALUE);
+}
+
+static void populateBoatDataResponse(char* buf, size_t bufSize, const char* key)
+{
+	if (BoatRegistry_OK != BoatRegistry_rdlock())
+	{
+		ERRLOG("Failed to read-lock BoatRegistry lock for boat data response!");
+		snprintf(buf, bufSize, "%s,%s,failed\n", REQ_STR_GET_BOAT_DATA, key);
+		return;
+	}
+
+	const Boat* boat = BoatRegistry_get(key);
+
+	proteus_GeoPos pos;
+	proteus_GeoVec v;
+	proteus_GeoVec vGround;
+
+	if (boat)
+	{
+		pos = boat->pos;
+		v = boat->v;
+		vGround = boat->vGround;
+	}
+
+	if (BoatRegistry_OK != BoatRegistry_unlock())
+	{
+		ERRLOG("Failed to unlock BoatRegistry lock for boat data response!");
+	}
+
+	if (boat)
+	{
+		snprintf(buf, bufSize, "%s,%s,ok,%.6f,%.6f,%.1f,%.2f,%.1f,%.2f\n",
+				REQ_STR_GET_BOAT_DATA,
+				key,
+				pos.lat,
+				pos.lon,
+				v.angle,
+				v.mag,
+				vGround.angle,
+				vGround.mag);
+	}
+	else
+	{
+		snprintf(buf, bufSize, "%s,%s,noboat\n", REQ_STR_GET_BOAT_DATA, key);
+	}
 }
