@@ -33,7 +33,7 @@ typedef struct
 	time_t time;
 
 	// Boat name
-	const char* boatName;
+	char* boatName;
 
 	// Boat position
 	proteus_GeoPos boatPos;
@@ -43,6 +43,9 @@ typedef struct
 
 	// Boat velocity (over ground)
 	proteus_GeoVec boatVecGround;
+
+	// Compass magnetic declination
+	double compassMagDec;
 
 	// Boat distance travelled
 	double distanceTravelled;
@@ -66,10 +69,34 @@ typedef struct
 
 	// Boat location state (0: water; 1: landed)
 	unsigned char locState;
+
+	// Whether or not log entry is "visible" (applies to celestial navigation mode)
+	bool reportVisible;
 } LogEntry;
 
+typedef struct
+{
+	// Time
+	time_t time;
+
+	// Boat name
+	const char* boatName;
+
+	// Celestial object ID (see proteus/Celestial.h)
+	int obj;
+
+	// Object sighted azimuth
+	double az;
+
+	// Object sighted altitude
+	double alt;
+
+	// Compass magnetic declination
+	double compassMagDec;
+} CelestialSightEntry;
+
 int Logger_init(const char* csvLoggerDir, const char* sqliteDbFilename);
-void Logger_fillLogEntry(Boat* boat, const char* name, time_t t, LogEntry* log);
-void Logger_writeLogs(LogEntry* logEntries, unsigned int count);
+void Logger_fillLogEntry(Boat* boat, const char* name, time_t t, bool reportVisible, LogEntry* log);
+void Logger_writeLogs(LogEntry* logEntries, unsigned int lCount, CelestialSightEntry* csEntries, unsigned int csCount);
 
 #endif // _Logger_h_

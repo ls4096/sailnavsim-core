@@ -437,6 +437,7 @@ done:
 static void processConnection(unsigned int workerThreadId, int fd)
 {
 	char buf[MSG_BUF_SIZE];
+	buf[0] = 0;
 
 	// Number of bytes in read buffer ready for message parsing/processing
 	int readyBytes = 0;
@@ -536,6 +537,7 @@ static void processConnection(unsigned int workerThreadId, int fd)
 		}
 
 		// Move start of next message data to start of buffer.
+		// NOTE: memmove() allows source and destination buffers to overlap.
 		memmove(buf, buf + i, MSG_BUF_SIZE - i);
 		readyBytes -= i;
 

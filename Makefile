@@ -8,6 +8,7 @@ OBJS = \
 	src/BoatInitParser.o \
 	src/BoatRegistry.o \
 	src/BoatWindResponse.o \
+	src/CelestialSight.o \
 	src/Command.o \
 	src/ErrLog.o \
 	src/Logger.o \

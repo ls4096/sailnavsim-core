@@ -14,6 +14,7 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <math.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -23,15 +24,18 @@
 #include <errno.h>
 
 #include <proteus/proteus.h>
+#include <proteus/Compass.h>
 #include <proteus/GeoInfo.h>
 #include <proteus/Logging.h>
 #include <proteus/Ocean.h>
+#include <proteus/ScalarConv.h>
 #include <proteus/Wave.h>
 #include <proteus/Weather.h>
 
 #include "Boat.h"
 #include "BoatInitParser.h"
 #include "BoatRegistry.h"
+#include "CelestialSight.h"
 #include "Command.h"
 #include "ErrLog.h"
 #include "Logger.h"
@@ -60,6 +64,8 @@
 
 #define GEO_INFO_DATA_DIR_PATH "geo_water_data/"
 
+#define COMPASS_DATA_PATH "compass_data/mag_dec.csv"
+
 
 #define CMDS_INPUT_PATH "./cmds"
 
@@ -75,7 +81,7 @@
 #define PERF_TEST_MAX_BOAT_COUNT (204800)
 
 
-static const char* VERSION_STRING = "SailNavSim version 1.8.0 (" __DATE__ " " __TIME__ ")";
+static const char* VERSION_STRING = "SailNavSim version 1.9.0-dev (" __DATE__ " " __TIME__ ")";
 
 
 static int parseArgs(int argc, char** argv);
@@ -83,6 +89,9 @@ static void printVersionInfo();
 
 static void handleCommand(Command* cmd);
 static void handleBoatRegistryCommand(Command* cmd);
+
+static bool isApproximatelyNearVisibleLand(const proteus_GeoPos* pos, float visibility);
+static bool isLandFoundOnCircle(const proteus_GeoPos* pos, double r, int n);
 
 static void perfAddAndStartRandomBoat();
 
@@ -176,6 +185,18 @@ int main(int argc, char** argv)
 		return -1;
 	}
 
+	if (proteus_Compass_init(COMPASS_DATA_PATH) != 0)
+	{
+		ERRLOG("Failed to init compass data!");
+		return -1;
+	}
+
+	if (CelestialSight_init() != 0)
+	{
+		ERRLOG("Failed to init celestial sight system!");
+		return -1;
+	}
+
 	if (Command_init(CMDS_INPUT_PATH) != 0)
 	{
 		ERRLOG("Failed to init command processor!");
@@ -236,12 +257,16 @@ int main(int argc, char** argv)
 			lastIter = iter;
 
 			LogEntry* logEntries = 0;
+			CelestialSight* sights = 0;
 			if (doLog)
 			{
+				// One log entry and (maximum) one celestial sight per boat on this iteration.
 				logEntries = (LogEntry*) malloc(boatCount * sizeof(LogEntry));
+				sights = (CelestialSight*) malloc(boatCount * sizeof(CelestialSight));
 			}
 
 			int ilog = 0;
+			int totalSights = 0;
 
 			if (BoatRegistry_OK != BoatRegistry_wrlock())
 			{
@@ -256,7 +281,28 @@ int main(int argc, char** argv)
 
 				if (doLog)
 				{
-					Logger_fillLogEntry(e->boat, e->name, curTime, logEntries + ilog);
+					bool isReportVisible = true;
+
+					if ((e->boat->boatFlags & BOAT_FLAG_CELESTIAL))
+					{
+						proteus_Weather wx;
+						proteus_Weather_get(&e->boat->pos, &wx, false);
+
+						CelestialSight_shoot(curTime, &e->boat->pos, (int) roundf(wx.cloud), (double) wx.pressure, (double) wx.temp, sights + ilog);
+						if (sights[ilog].obj >= 0)
+						{
+							totalSights++;
+						}
+
+						isReportVisible = isApproximatelyNearVisibleLand(&e->boat->pos, wx.visibility);
+					}
+					else
+					{
+						sights[ilog].obj = -1;
+					}
+
+					Logger_fillLogEntry(e->boat, e->name, curTime, isReportVisible, logEntries + ilog);
+
 					ilog++;
 				}
 
@@ -270,7 +316,26 @@ int main(int argc, char** argv)
 
 			if (doLog)
 			{
-				Logger_writeLogs(logEntries, boatCount);
+				CelestialSightEntry* csEntries = malloc(totalSights * sizeof(CelestialSightEntry));
+				CelestialSightEntry* nextEntry = csEntries;
+				for (int i = 0; i < boatCount; i++)
+				{
+					if (sights[i].obj >= 0)
+					{
+						nextEntry->time = curTime;
+						nextEntry->boatName = logEntries[i].boatName; // Shallow copy of string suffices here, since csEntries has same lifetime as logEntries.
+						nextEntry->obj = sights[i].obj;
+						nextEntry->az = sights[i].coord.az;
+						nextEntry->alt = sights[i].coord.alt;
+						nextEntry->compassMagDec = proteus_Compass_magdec(&logEntries[i].boatPos, curTime);
+
+						nextEntry++;
+					}
+				}
+
+				free(sights);
+
+				Logger_writeLogs(logEntries, boatCount, csEntries, totalSights);
 			}
 		}
 
@@ -538,6 +603,87 @@ static void handleBoatRegistryCommand(Command* cmd)
 			break;
 		}
 	}
+}
+
+// Samples points inside a circle of the visibility radius for detecting nearby land.
+#define MIN_RADIUS (30.0)
+#define MAX_RADIUS (31000.0)
+#define MAX_SAMPLE_POINTS_ON_CIRCLE (32)
+static bool isApproximatelyNearVisibleLand(const proteus_GeoPos* pos, float visibility)
+{
+	if (!proteus_GeoInfo_isWater(pos))
+	{
+		return true;
+	}
+
+	int n = 4;
+	for (double r = MIN_RADIUS; r <= visibility && r <= MAX_RADIUS; r *= 2.0)
+	{
+		if (isLandFoundOnCircle(pos, r, n))
+		{
+			return true;
+		}
+
+		if (n < MAX_SAMPLE_POINTS_ON_CIRCLE)
+		{
+			n *= 2;
+		}
+	}
+
+	if (visibility > MIN_RADIUS)
+	{
+		// Check one last circle at the outer limits of visibility.
+		if (isLandFoundOnCircle(pos, visibility, n))
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
+// Calculations to "look around" approximately uniformly (at "n" points) around an approximate circle (of somewhat-radius "r" metres) from the given position ("pos").
+static bool isLandFoundOnCircle(const proteus_GeoPos* pos, double r, int n)
+{
+	proteus_GeoPos p;
+
+	const double cosLat = cos(proteus_ScalarConv_deg2rad(pos->lat));
+
+	for (int i = 0; i < n; i++)
+	{
+		// We could make this more exact, but a close-enough approximation suffices here and will run faster...
+
+		p.lat = pos->lat +
+			(r * cos(i * 2.0 * M_PI / n) / 111120.0);
+
+		p.lon = pos->lon +
+			(r * sin(i * 2.0 * M_PI / n) / (111120.0 * cosLat));
+
+		if (p.lat > 90.0)
+		{
+			p.lat = 90.0;
+		}
+		else if (p.lat < -90.0)
+		{
+			p.lat = -90.0;
+		}
+
+		if (p.lon > 180.0)
+		{
+			p.lon -= 360.0;
+		}
+		else if (p.lon < -180.0)
+		{
+			p.lat += 360.0;
+		}
+
+		if (!proteus_GeoInfo_isWater(&p))
+		{
+			return true;
+		}
+	}
+
+	return false;
 }
 
 static void perfAddAndStartRandomBoat()

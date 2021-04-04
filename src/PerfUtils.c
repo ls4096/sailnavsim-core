@@ -58,7 +58,7 @@ int PerfUtils_getRandomBoatType()
 
 int PerfUtils_getRandomBoatFlags()
 {
-	return getRandInt(3);
+	return getRandInt(7);
 }
 
 int PerfUtils_getRandomCourse()

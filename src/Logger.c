@@ -27,6 +27,7 @@
 
 #include <sqlite3.h>
 
+#include <proteus/Compass.h>
 #include <proteus/GeoInfo.h>
 #include <proteus/Ocean.h>
 #include <proteus/Wave.h>
@@ -50,7 +51,10 @@ typedef struct LogEntries LogEntries;
 struct LogEntries
 {
 	LogEntry* logs;
-	unsigned int count;
+	unsigned int lCount;
+
+	CelestialSightEntry* cs;
+	unsigned int csCount;
 
 	LogEntries* next;
 };
@@ -67,14 +71,18 @@ static bool _init = false;
 
 static void* loggerThreadMain(void* arg);
 
-static void writeLogsCsv(LogEntry* logEntries, unsigned int count);
-static void writeLogsSql(LogEntry* logEntries, unsigned int count);
+static void writeLogsCsv(const LogEntry* const logEntries, unsigned int lCount, const CelestialSightEntry* const csEntries, unsigned int csCount);
+static void writeLogsSql(const LogEntry* const logEntries, unsigned int lCount, const CelestialSightEntry* const csEntries, unsigned int csCount);
+
+static void writeLogsSqlBoatLogs(const LogEntry* const logEntries, unsigned int lCount);
+static void writeLogsSqlCelestialSights(const CelestialSightEntry* const csEntries, unsigned int csCount);
 
 
 static const char* _csvLoggerDir = 0;
 
 static sqlite3* _sql = 0;
-static sqlite3_stmt* _sqlInsertStmt;
+static sqlite3_stmt* _sqlInsertStmtBoatLog;
+static sqlite3_stmt* _sqlInsertStmtCelestialSight;
 
 static int setupSql(const char* sqliteDbFilename);
 
@@ -135,7 +143,7 @@ int Logger_init(const char* csvLoggerDir, const char* sqliteDbFilename)
 	return 0;
 }
 
-void Logger_fillLogEntry(Boat* boat, const char* name, time_t t, LogEntry* log)
+void Logger_fillLogEntry(Boat* boat, const char* name, time_t t, bool reportVisible, LogEntry* log)
 {
 	if (!_init)
 	{
@@ -153,11 +161,14 @@ void Logger_fillLogEntry(Boat* boat, const char* name, time_t t, LogEntry* log)
 
 	const bool isWater = proteus_GeoInfo_isWater(&boat->pos);
 
+	const double compassMagDec = proteus_Compass_magdec(&boat->pos, t);
+
 	log->time = t;
-	log->boatName = name;
+	log->boatName = strdup(name);
 	log->boatPos = boat->pos;
 	log->boatVecWater = boat->v;
 	log->boatVecGround = boat->vGround;
+	log->compassMagDec = compassMagDec;
 	log->distanceTravelled = boat->distanceTravelled;
 	log->damage = boat->damage;
 	log->wx = wx;
@@ -167,9 +178,10 @@ void Logger_fillLogEntry(Boat* boat, const char* name, time_t t, LogEntry* log)
 	log->waveDataValid = wdValid;
 	log->boatState = (boat->stop ? 0 : (boat->sailsDown ? 2 : 1));
 	log->locState = (isWater ? 0 : 1);
+	log->reportVisible = reportVisible;
 }
 
-void Logger_writeLogs(LogEntry* logEntries, unsigned int count)
+void Logger_writeLogs(LogEntry* logEntries, unsigned int lCount, CelestialSightEntry* csEntries, unsigned int csCount)
 {
 	if (!_init)
 	{
@@ -177,8 +189,12 @@ void Logger_writeLogs(LogEntry* logEntries, unsigned int count)
 	}
 
 	LogEntries* l = (LogEntries*) malloc(sizeof(LogEntries));
+
 	l->logs = logEntries;
-	l->count = count;
+	l->lCount = lCount;
+	l->cs = csEntries;
+	l->csCount = csCount;
+
 	l->next = 0;
 
 	if (0 != pthread_mutex_lock(&_logsLock))
@@ -232,8 +248,12 @@ static void* loggerThreadMain(void* arg)
 		while (_logs != 0)
 		{
 			LogEntries* l = _logs;
+
 			LogEntry* entries = l->logs;
-			unsigned int count = l->count;
+			unsigned int lCount = l->lCount;
+
+			CelestialSightEntry* cs = l->cs;
+			unsigned int csCount = l->csCount;
 
 			_logs = l->next;
 
@@ -242,10 +262,16 @@ static void* loggerThreadMain(void* arg)
 				ERRLOG("loggerThreadMain: Failed to unlock logs mutex!");
 			}
 
-			writeLogsSql(entries, count);
-			writeLogsCsv(entries, count);
+			writeLogsSql(entries, lCount, cs, csCount);
+			writeLogsCsv(entries, lCount, cs, csCount);
+
+			for (int i = 0; i < lCount; i++)
+			{
+				free(entries[i].boatName);
+			}
 
 			free(entries);
+			free(cs);
 			free(l);
 
 			if (0 != pthread_mutex_lock(&_logsLock))
@@ -263,7 +289,7 @@ static void* loggerThreadMain(void* arg)
 	return 0;
 }
 
-static void writeLogsCsv(LogEntry* logEntries, unsigned int count)
+static void writeLogsCsv(const LogEntry* const logEntries, unsigned int lCount, const CelestialSightEntry* const csEntries, unsigned int csCount)
 {
 	if (!_csvLoggerDir)
 	{
@@ -288,7 +314,8 @@ static void writeLogsCsv(LogEntry* logEntries, unsigned int count)
 		return;
 	}
 
-	for (unsigned int i = 0; i < count; i++)
+	// Boat logs
+	for (unsigned int i = 0; i < lCount; i++)
 	{
 		const LogEntry* const log = logEntries + i;
 
@@ -328,7 +355,12 @@ static void writeLogsCsv(LogEntry* logEntries, unsigned int count)
 		//  - boat location (0: water; 1: landed)
 		//  - water salinity
 		//  - ocean ice
+		//  - distance travelled
+		//  - boat damage
+		//  - wind gust
 		//  - wave height
+		//  - compass magnetic declination
+		//  - report visibility (0: visible; 1: invisible)
 
 		char waveHeightStr[16];
 		if (log->waveDataValid)
@@ -342,7 +374,7 @@ static void writeLogsCsv(LogEntry* logEntries, unsigned int count)
 
 		if (log->oceanDataValid)
 		{
-			snprintf(logLine, CSV_LOGGER_LINE_BUF_SIZE, "%lu,%.6f,%.6f,%.1f,%.3f,%.1f,%.3f,%.1f,%.3f,%.1f,%.3f,%.1f,%.1f,%.1f,%.1f,%.0f,%.0f,%.2f,%d,%d,%d,%.3f,%.0f,%.1f,%.3f,%.3f,%s\n",
+			snprintf(logLine, CSV_LOGGER_LINE_BUF_SIZE, "%lu,%.6f,%.6f,%.1f,%.3f,%.1f,%.3f,%.1f,%.3f,%.1f,%.3f,%.1f,%.1f,%.1f,%.1f,%.0f,%.0f,%.2f,%d,%d,%d,%.3f,%.0f,%.1f,%.3f,%.3f,%s,%.3f,%d\n",
 				log->time,
 				log->boatPos.lat,
 				log->boatPos.lon,
@@ -369,12 +401,14 @@ static void writeLogsCsv(LogEntry* logEntries, unsigned int count)
 				log->distanceTravelled,
 				log->damage,
 				log->wx.windGust,
-				waveHeightStr
+				waveHeightStr,
+				log->compassMagDec,
+				(log->reportVisible ? 0 : 1)
 				);
 		}
 		else
 		{
-			snprintf(logLine, CSV_LOGGER_LINE_BUF_SIZE, "%lu,%.6f,%.6f,%.1f,%.3f,%.1f,%.3f,%.1f,%.3f,,,,%.1f,%.1f,%.1f,%.0f,%.0f,%.2f,%d,%d,%d,,,%.1f,%.3f,%.3f,%s\n",
+			snprintf(logLine, CSV_LOGGER_LINE_BUF_SIZE, "%lu,%.6f,%.6f,%.1f,%.3f,%.1f,%.3f,%.1f,%.3f,,,,%.1f,%.1f,%.1f,%.0f,%.0f,%.2f,%d,%d,%d,,,%.1f,%.3f,%.3f,%s,%.3f,%d\n",
 				log->time,
 				log->boatPos.lat,
 				log->boatPos.lon,
@@ -396,7 +430,9 @@ static void writeLogsCsv(LogEntry* logEntries, unsigned int count)
 				log->distanceTravelled,
 				log->damage,
 				log->wx.windGust,
-				waveHeightStr
+				waveHeightStr,
+				log->compassMagDec,
+				(log->reportVisible ? 0 : 1)
 				);
 		}
 
@@ -409,18 +445,66 @@ static void writeLogsCsv(LogEntry* logEntries, unsigned int count)
 
 		fclose(f);
 	}
+
+	// Celestial sights
+	for (unsigned int i = 0; i < csCount; i++)
+	{
+		const CelestialSightEntry* const cse = csEntries + i;
+
+		char filepath[CSV_LOGGER_DIR_PATH_MAXLEN + 512];
+		snprintf(filepath, CSV_LOGGER_DIR_PATH_MAXLEN + 512, "%s/%s-cs.csv", _csvLoggerDir, cse->boatName);
+
+		FILE* f = fopen(filepath, "a");
+		if (f == 0)
+		{
+			ERRLOG1("Failed to open log output file: %s", filepath);
+			continue;
+		}
+
+		char logLine[CSV_LOGGER_LINE_BUF_SIZE];
+
+		// Log:
+		//  - time
+		//  - object ID
+		//  - azimuth
+		//  - altitude
+		//  - compass magnetic declination
+
+		snprintf(logLine, CSV_LOGGER_LINE_BUF_SIZE, "%lu,%d,%.6f,%.6f,%.3f\n",
+			cse->time,
+			cse->obj,
+			cse->az,
+			cse->alt,
+			cse->compassMagDec
+			);
+
+		size_t l = strlen(logLine);
+		size_t w;
+		if (l != (w = fwrite(logLine, 1, l, f)))
+		{
+			ERRLOG2("Failed to write celestial sight entry of %ld bytes for %s!", l, cse->boatName);
+		}
+
+		fclose(f);
+	}
 }
 
-static void writeLogsSql(LogEntry* logEntries, unsigned int count)
+static void writeLogsSql(const LogEntry* const logEntries, unsigned int lCount, const CelestialSightEntry* const csEntries, unsigned int csCount)
 {
 	if (!_sql)
 	{
 		return;
 	}
 
+	writeLogsSqlBoatLogs(logEntries, lCount);
+	writeLogsSqlCelestialSights(csEntries, csCount);
+}
+
+static void writeLogsSqlBoatLogs(const LogEntry* const logEntries, unsigned int lCount)
+{
 	int src;
 
-	ERRLOG("About to begin DB transaction...");
+	ERRLOG("About to begin BoatLogs DB transaction...");
 
 	while (SQLITE_OK != (src = sqlite3_exec(_sql, "BEGIN IMMEDIATE TRANSACTION;", 0, 0, 0)))
 	{
@@ -438,73 +522,74 @@ static void writeLogsSql(LogEntry* logEntries, unsigned int count)
 
 	ERRLOG("DB transaction started.");
 
-	for (unsigned int i = 0; i < count; i++)
+	for (unsigned int i = 0; i < lCount; i++)
 	{
 		const LogEntry* const log = logEntries + i;
 
-		if (SQLITE_OK != (src = sqlite3_reset(_sqlInsertStmt)))
+		if (SQLITE_OK != (src = sqlite3_reset(_sqlInsertStmtBoatLog)))
 		{
 			ERRLOG1("Failed to reset stmt! sqlite rc=%d", src);
 			continue;
 		}
 
+
 		int n = 0;
 
-		if (SQLITE_OK != (src = sqlite3_bind_text(_sqlInsertStmt, ++n, log->boatName, -1, 0)))
+		if (SQLITE_OK != (src = sqlite3_bind_text(_sqlInsertStmtBoatLog, ++n, log->boatName, -1, 0)))
 		{
 			ERRLOG1("Failed to bind boatName! sqlite rc=%d", src);
 			continue;
 		}
 
-		if (SQLITE_OK != (src = sqlite3_bind_int64(_sqlInsertStmt, ++n, log->time)))
+		if (SQLITE_OK != (src = sqlite3_bind_int64(_sqlInsertStmtBoatLog, ++n, log->time)))
 		{
 			ERRLOG1("Failed to bind time! sqlite rc=%d", src);
 			continue;
 		}
 
-		if (SQLITE_OK != (src = sqlite3_bind_double(_sqlInsertStmt, ++n, log->boatPos.lat)))
+		if (SQLITE_OK != (src = sqlite3_bind_double(_sqlInsertStmtBoatLog, ++n, log->boatPos.lat)))
 		{
 			ERRLOG1("Failed to bind boat lat! sqlite rc=%d", src);
 			continue;
 		}
 
-		if (SQLITE_OK != (src = sqlite3_bind_double(_sqlInsertStmt, ++n, log->boatPos.lon)))
+		if (SQLITE_OK != (src = sqlite3_bind_double(_sqlInsertStmtBoatLog, ++n, log->boatPos.lon)))
 		{
 			ERRLOG1("Failed to bind boat lon! sqlite rc=%d", src);
 			continue;
 		}
 
-		if (SQLITE_OK != (src = sqlite3_bind_double(_sqlInsertStmt, ++n, log->boatVecWater.angle)))
+		if (SQLITE_OK != (src = sqlite3_bind_double(_sqlInsertStmtBoatLog, ++n, log->boatVecWater.angle)))
 		{
 			ERRLOG1("Failed to bind boat vec water angle! sqlite rc=%d", src);
 			continue;
 		}
 
-		if (SQLITE_OK != (src = sqlite3_bind_double(_sqlInsertStmt, ++n, log->boatVecWater.mag)))
+		if (SQLITE_OK != (src = sqlite3_bind_double(_sqlInsertStmtBoatLog, ++n, log->boatVecWater.mag)))
 		{
 			ERRLOG1("Failed to bind boat vec water mag! sqlite rc=%d", src);
 			continue;
 		}
 
-		if (SQLITE_OK != (src = sqlite3_bind_double(_sqlInsertStmt, ++n, log->boatVecGround.angle)))
+		if (SQLITE_OK != (src = sqlite3_bind_double(_sqlInsertStmtBoatLog, ++n, log->boatVecGround.angle)))
 		{
 			ERRLOG1("Failed to bind boat vec ground angle! sqlite rc=%d", src);
 			continue;
 		}
 
-		if (SQLITE_OK != (src = sqlite3_bind_double(_sqlInsertStmt, ++n, log->boatVecGround.mag)))
+		if (SQLITE_OK != (src = sqlite3_bind_double(_sqlInsertStmtBoatLog, ++n, log->boatVecGround.mag)))
 		{
 			ERRLOG1("Failed to bind boat vec ground mag! sqlite rc=%d", src);
 			continue;
 		}
 
-		if (SQLITE_OK != (src = sqlite3_bind_double(_sqlInsertStmt, ++n, log->wx.wind.angle)))
+		if (SQLITE_OK != (src = sqlite3_bind_double(_sqlInsertStmtBoatLog, ++n, log->wx.wind.angle)))
 		{
 			ERRLOG1("Failed to bind wind angle! sqlite rc=%d", src);
 			continue;
 		}
 
-		if (SQLITE_OK != (src = sqlite3_bind_double(_sqlInsertStmt, ++n, log->wx.wind.mag)))
+		if (SQLITE_OK != (src = sqlite3_bind_double(_sqlInsertStmtBoatLog, ++n, log->wx.wind.mag)))
 		{
 			ERRLOG1("Failed to bind wind mag! sqlite rc=%d", src);
 			continue;
@@ -512,19 +597,19 @@ static void writeLogsSql(LogEntry* logEntries, unsigned int count)
 
 		if (log->oceanDataValid)
 		{
-			if (SQLITE_OK != (src = sqlite3_bind_double(_sqlInsertStmt, ++n, log->oceanData.current.angle)))
+			if (SQLITE_OK != (src = sqlite3_bind_double(_sqlInsertStmtBoatLog, ++n, log->oceanData.current.angle)))
 			{
 				ERRLOG1("Failed to bind ocean data current angle! sqlite rc=%d", src);
 				continue;
 			}
 
-			if (SQLITE_OK != (src = sqlite3_bind_double(_sqlInsertStmt, ++n, log->oceanData.current.mag)))
+			if (SQLITE_OK != (src = sqlite3_bind_double(_sqlInsertStmtBoatLog, ++n, log->oceanData.current.mag)))
 			{
 				ERRLOG1("Failed to bind ocean data current mag! sqlite rc=%d", src);
 				continue;
 			}
 
-			if (SQLITE_OK != (src = sqlite3_bind_double(_sqlInsertStmt, ++n, log->oceanData.surfaceTemp)))
+			if (SQLITE_OK != (src = sqlite3_bind_double(_sqlInsertStmtBoatLog, ++n, log->oceanData.surfaceTemp)))
 			{
 				ERRLOG1("Failed to bind ocean data temp! sqlite rc=%d", src);
 				continue;
@@ -532,74 +617,74 @@ static void writeLogsSql(LogEntry* logEntries, unsigned int count)
 		}
 		else
 		{
-			if (SQLITE_OK != (src = sqlite3_bind_null(_sqlInsertStmt, ++n)))
+			if (SQLITE_OK != (src = sqlite3_bind_null(_sqlInsertStmtBoatLog, ++n)))
 			{
 				ERRLOG1("Failed to bind null ocean data current angle! sqlite rc=%d", src);
 				continue;
 			}
 
-			if (SQLITE_OK != (src = sqlite3_bind_null(_sqlInsertStmt, ++n)))
+			if (SQLITE_OK != (src = sqlite3_bind_null(_sqlInsertStmtBoatLog, ++n)))
 			{
 				ERRLOG1("Failed to bind null ocean data current mag! sqlite rc=%d", src);
 				continue;
 			}
 
-			if (SQLITE_OK != (src = sqlite3_bind_null(_sqlInsertStmt, ++n)))
+			if (SQLITE_OK != (src = sqlite3_bind_null(_sqlInsertStmtBoatLog, ++n)))
 			{
 				ERRLOG1("Failed to bind null ocean data temp! sqlite rc=%d", src);
 				continue;
 			}
 		}
 
-		if (SQLITE_OK != (src = sqlite3_bind_double(_sqlInsertStmt, ++n, log->wx.temp)))
+		if (SQLITE_OK != (src = sqlite3_bind_double(_sqlInsertStmtBoatLog, ++n, log->wx.temp)))
 		{
 			ERRLOG1("Failed to bind air temp! sqlite rc=%d", src);
 			continue;
 		}
 
-		if (SQLITE_OK != (src = sqlite3_bind_double(_sqlInsertStmt, ++n, log->wx.dewpoint)))
+		if (SQLITE_OK != (src = sqlite3_bind_double(_sqlInsertStmtBoatLog, ++n, log->wx.dewpoint)))
 		{
 			ERRLOG1("Failed to bind air dewpoint! sqlite rc=%d", src);
 			continue;
 		}
 
-		if (SQLITE_OK != (src = sqlite3_bind_double(_sqlInsertStmt, ++n, log->wx.pressure)))
+		if (SQLITE_OK != (src = sqlite3_bind_double(_sqlInsertStmtBoatLog, ++n, log->wx.pressure)))
 		{
 			ERRLOG1("Failed to bind air pressure! sqlite rc=%d", src);
 			continue;
 		}
 
-		if (SQLITE_OK != (src = sqlite3_bind_int(_sqlInsertStmt, ++n, (int) round(log->wx.cloud))))
+		if (SQLITE_OK != (src = sqlite3_bind_int(_sqlInsertStmtBoatLog, ++n, (int) round(log->wx.cloud))))
 		{
 			ERRLOG1("Failed to bind cloud! sqlite rc=%d", src);
 			continue;
 		}
 
-		if (SQLITE_OK != (src = sqlite3_bind_int(_sqlInsertStmt, ++n, (int) round(log->wx.visibility))))
+		if (SQLITE_OK != (src = sqlite3_bind_int(_sqlInsertStmtBoatLog, ++n, (int) round(log->wx.visibility))))
 		{
 			ERRLOG1("Failed to bind visibility! sqlite rc=%d", src);
 			continue;
 		}
 
-		if (SQLITE_OK != (src = sqlite3_bind_double(_sqlInsertStmt, ++n, log->wx.prate)))
+		if (SQLITE_OK != (src = sqlite3_bind_double(_sqlInsertStmtBoatLog, ++n, log->wx.prate)))
 		{
 			ERRLOG1("Failed to bind precip rate! sqlite rc=%d", src);
 			continue;
 		}
 
-		if (SQLITE_OK != (src = sqlite3_bind_int(_sqlInsertStmt, ++n, log->wx.cond)))
+		if (SQLITE_OK != (src = sqlite3_bind_int(_sqlInsertStmtBoatLog, ++n, log->wx.cond)))
 		{
 			ERRLOG1("Failed to bind precip type! sqlite rc=%d", src);
 			continue;
 		}
 
-		if (SQLITE_OK != (src = sqlite3_bind_int(_sqlInsertStmt, ++n, log->boatState)))
+		if (SQLITE_OK != (src = sqlite3_bind_int(_sqlInsertStmtBoatLog, ++n, log->boatState)))
 		{
 			ERRLOG1("Failed to bind boat state! sqlite rc=%d", src);
 			continue;
 		}
 
-		if (SQLITE_OK != (src = sqlite3_bind_int(_sqlInsertStmt, ++n, log->locState)))
+		if (SQLITE_OK != (src = sqlite3_bind_int(_sqlInsertStmtBoatLog, ++n, log->locState)))
 		{
 			ERRLOG1("Failed to bind boat location state! sqlite rc=%d", src);
 			continue;
@@ -607,13 +692,13 @@ static void writeLogsSql(LogEntry* logEntries, unsigned int count)
 
 		if (log->oceanDataValid)
 		{
-			if (SQLITE_OK != (src = sqlite3_bind_double(_sqlInsertStmt, ++n, log->oceanData.salinity)))
+			if (SQLITE_OK != (src = sqlite3_bind_double(_sqlInsertStmtBoatLog, ++n, log->oceanData.salinity)))
 			{
 				ERRLOG1("Failed to bind ocean data salinity! sqlite rc=%d", src);
 				continue;
 			}
 
-			if (SQLITE_OK != (src = sqlite3_bind_int(_sqlInsertStmt, ++n, (int) round(log->oceanData.ice))))
+			if (SQLITE_OK != (src = sqlite3_bind_int(_sqlInsertStmtBoatLog, ++n, (int) round(log->oceanData.ice))))
 			{
 				ERRLOG1("Failed to bind ocean data ice! sqlite rc=%d", src);
 				continue;
@@ -621,32 +706,32 @@ static void writeLogsSql(LogEntry* logEntries, unsigned int count)
 		}
 		else
 		{
-			if (SQLITE_OK != (src = sqlite3_bind_null(_sqlInsertStmt, ++n)))
+			if (SQLITE_OK != (src = sqlite3_bind_null(_sqlInsertStmtBoatLog, ++n)))
 			{
 				ERRLOG1("Failed to bind null ocean data salinity! sqlite rc=%d", src);
 				continue;
 			}
 
-			if (SQLITE_OK != (src = sqlite3_bind_null(_sqlInsertStmt, ++n)))
+			if (SQLITE_OK != (src = sqlite3_bind_null(_sqlInsertStmtBoatLog, ++n)))
 			{
 				ERRLOG1("Failed to bind null ocean data ice! sqlite rc=%d", src);
 				continue;
 			}
 		}
 
-		if (SQLITE_OK != (src = sqlite3_bind_double(_sqlInsertStmt, ++n, log->distanceTravelled)))
+		if (SQLITE_OK != (src = sqlite3_bind_double(_sqlInsertStmtBoatLog, ++n, log->distanceTravelled)))
 		{
 			ERRLOG1("Failed to bind distance travelled! sqlite rc=%d", src);
 			continue;
 		}
 
-		if (SQLITE_OK != (src = sqlite3_bind_double(_sqlInsertStmt, ++n, log->damage)))
+		if (SQLITE_OK != (src = sqlite3_bind_double(_sqlInsertStmtBoatLog, ++n, log->damage)))
 		{
 			ERRLOG1("Failed to bind damage! sqlite rc=%d", src);
 			continue;
 		}
 
-		if (SQLITE_OK != (src = sqlite3_bind_double(_sqlInsertStmt, ++n, log->wx.windGust)))
+		if (SQLITE_OK != (src = sqlite3_bind_double(_sqlInsertStmtBoatLog, ++n, log->wx.windGust)))
 		{
 			ERRLOG1("Failed to bind wind gust! sqlite rc=%d", src);
 			continue;
@@ -654,7 +739,7 @@ static void writeLogsSql(LogEntry* logEntries, unsigned int count)
 
 		if (log->waveDataValid)
 		{
-			if (SQLITE_OK != (src = sqlite3_bind_double(_sqlInsertStmt, ++n, log->waveData.waveHeight)))
+			if (SQLITE_OK != (src = sqlite3_bind_double(_sqlInsertStmtBoatLog, ++n, log->waveData.waveHeight)))
 			{
 				ERRLOG1("Failed to bind wave data wave height! sqlite rc=%d", src);
 				continue;
@@ -662,15 +747,27 @@ static void writeLogsSql(LogEntry* logEntries, unsigned int count)
 		}
 		else
 		{
-			if (SQLITE_OK != (src = sqlite3_bind_null(_sqlInsertStmt, ++n)))
+			if (SQLITE_OK != (src = sqlite3_bind_null(_sqlInsertStmtBoatLog, ++n)))
 			{
 				ERRLOG1("Failed to bind null wave data wave height! sqlite rc=%d", src);
 				continue;
 			}
 		}
 
+		if (SQLITE_OK != (src = sqlite3_bind_double(_sqlInsertStmtBoatLog, ++n, log->compassMagDec)))
+		{
+			ERRLOG1("Failed to bind compass mag dec! sqlite rc=%d", src);
+			continue;
+		}
 
-		if (SQLITE_DONE != (src = sqlite3_step(_sqlInsertStmt)))
+		if (SQLITE_OK != (src = sqlite3_bind_int(_sqlInsertStmtBoatLog, ++n, log->reportVisible ? 0 : 1)))
+		{
+			ERRLOG1("Failed to bind report invisibility boolean! sqlite rc=%d", src);
+			continue;
+		}
+
+
+		if (SQLITE_DONE != (src = sqlite3_step(_sqlInsertStmtBoatLog)))
 		{
 			ERRLOG1("Failed to step insert! sqlite rc=%d", src);
 			continue;
@@ -691,6 +788,108 @@ static void writeLogsSql(LogEntry* logEntries, unsigned int count)
 	else
 	{
 		ERRLOG("Committed boat logs to DB.");
+	}
+}
+
+static void writeLogsSqlCelestialSights(const CelestialSightEntry* const csEntries, unsigned int csCount)
+{
+	if (csCount == 0)
+	{
+		ERRLOG("No CelestialSights to write to DB.");
+		return;
+	}
+
+	int src;
+
+	ERRLOG("About to begin CelestialSights DB transaction...");
+
+	while (SQLITE_OK != (src = sqlite3_exec(_sql, "BEGIN IMMEDIATE TRANSACTION;", 0, 0, 0)))
+	{
+		if (SQLITE_BUSY == src)
+		{
+			ERRLOG("Got BUSY trying to start transaction. Trying again in 1 second...");
+			sleep(1);
+		}
+		else
+		{
+			ERRLOG1("Failed to begin SQL transaction! sqlite rc=%d", src);
+			return;
+		}
+	}
+
+	ERRLOG("DB transaction started.");
+
+	for (unsigned int i = 0; i < csCount; i++)
+	{
+		const CelestialSightEntry* const cse = csEntries + i;
+
+		if (SQLITE_OK != (src = sqlite3_reset(_sqlInsertStmtCelestialSight)))
+		{
+			ERRLOG1("Failed to reset stmt! sqlite rc=%d", src);
+			continue;
+		}
+
+
+		int n = 0;
+
+		if (SQLITE_OK != (src = sqlite3_bind_text(_sqlInsertStmtCelestialSight, ++n, cse->boatName, -1, 0)))
+		{
+			ERRLOG1("Failed to bind boatName! sqlite rc=%d", src);
+			continue;
+		}
+
+		if (SQLITE_OK != (src = sqlite3_bind_int64(_sqlInsertStmtCelestialSight, ++n, cse->time)))
+		{
+			ERRLOG1("Failed to bind time! sqlite rc=%d", src);
+			continue;
+		}
+
+		if (SQLITE_OK != (src = sqlite3_bind_int64(_sqlInsertStmtCelestialSight, ++n, cse->obj)))
+		{
+			ERRLOG1("Failed to bind object ID! sqlite rc=%d", src);
+			continue;
+		}
+
+		if (SQLITE_OK != (src = sqlite3_bind_double(_sqlInsertStmtCelestialSight, ++n, cse->az)))
+		{
+			ERRLOG1("Failed to bind object azimuth! sqlite rc=%d", src);
+			continue;
+		}
+
+		if (SQLITE_OK != (src = sqlite3_bind_double(_sqlInsertStmtCelestialSight, ++n, cse->alt)))
+		{
+			ERRLOG1("Failed to bind object altitude! sqlite rc=%d", src);
+			continue;
+		}
+
+		if (SQLITE_OK != (src = sqlite3_bind_double(_sqlInsertStmtCelestialSight, ++n, cse->compassMagDec)))
+		{
+			ERRLOG1("Failed to bind compass mag dec! sqlite rc=%d", src);
+			continue;
+		}
+
+
+		if (SQLITE_DONE != (src = sqlite3_step(_sqlInsertStmtCelestialSight)))
+		{
+			ERRLOG1("Failed to step insert! sqlite rc=%d", src);
+			continue;
+		}
+	}
+
+	src = sqlite3_exec(_sql, "END TRANSACTION;", 0, 0, 0);
+	if (SQLITE_OK != src)
+	{
+		ERRLOG1("Failed to end SQL transaction! sqlite rc=%d", src);
+
+		src = sqlite3_exec(_sql, "ROLLBACK;", 0, 0, 0);
+		if (SQLITE_OK != src)
+		{
+			ERRLOG1("Failed to rollback after failed end transaction! sqlite rc=%d", src);
+		}
+	}
+	else
+	{
+		ERRLOG("Committed celestial sights to DB.");
 	}
 }
 
@@ -728,13 +927,21 @@ static int setupSql(const char* sqliteDbFilename)
 		return -1;
 	}
 
-	static const char* INSERT_STMT_STR = "INSERT INTO BoatLog VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);";
 
-	if (SQLITE_OK != (src = sqlite3_prepare_v2(_sql, INSERT_STMT_STR, strlen(INSERT_STMT_STR) + 1, &_sqlInsertStmt, 0)))
+	static const char* BOAT_LOG_INSERT_STMT_STR = "INSERT INTO BoatLog VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);";
+	if (SQLITE_OK != (src = sqlite3_prepare_v2(_sql, BOAT_LOG_INSERT_STMT_STR, strlen(BOAT_LOG_INSERT_STMT_STR) + 1, &_sqlInsertStmtBoatLog, 0)))
 	{
-		ERRLOG1("Failed to prepare insert statement. sqlite rc=%d", src);
+		ERRLOG1("Failed to prepare BoatLog insert statement. sqlite rc=%d", src);
 		return -1;
 	}
+
+	static const char* CELESTIAL_SIGHT_INSERT_STMT_STR = "INSERT INTO CelestialSight VALUES (?,?,?,?,?,?);";
+	if (SQLITE_OK != (src = sqlite3_prepare_v2(_sql, CELESTIAL_SIGHT_INSERT_STMT_STR, strlen(CELESTIAL_SIGHT_INSERT_STMT_STR) + 1, &_sqlInsertStmtCelestialSight, 0)))
+	{
+		ERRLOG1("Failed to prepare CelestialSight insert statement. sqlite rc=%d", src);
+		return -1;
+	}
+
 
 	return 0;
 }

@@ -25,6 +25,7 @@
 
 #define BOAT_FLAG_TAKES_DAMAGE (0x01)
 #define BOAT_FLAG_WAVE_SPEED_EFFECT (0x02)
+#define BOAT_FLAG_CELESTIAL (0x04)
 
 
 typedef struct
