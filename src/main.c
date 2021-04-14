@@ -81,7 +81,7 @@
 #define PERF_TEST_MAX_BOAT_COUNT (204800)
 
 
-static const char* VERSION_STRING = "SailNavSim version 1.9.0-dev (" __DATE__ " " __TIME__ ")";
+static const char* VERSION_STRING = "SailNavSim version 1.9.0 (" __DATE__ " " __TIME__ ")";
 
 
 static int parseArgs(int argc, char** argv);
@@ -277,7 +277,7 @@ int main(int argc, char** argv)
 			BoatEntry* e = boats;
 			while (e)
 			{
-				Boat_advance(e->boat);
+				Boat_advance(e->boat, curTime);
 
 				if (doLog)
 				{
@@ -565,15 +565,17 @@ static void handleCommand(Command* cmd)
 			foundBoat->sailsDown = true;
 			break;
 		case COMMAND_ACTION_START:
-			if (Boat_isHeadingTowardWater(foundBoat))
+			if (Boat_isHeadingTowardWater(foundBoat, time(0)))
 			{
 				foundBoat->stop = false;
 				foundBoat->sailsDown = false;
 				foundBoat->movingToSea = true;
 			}
 			break;
-		case COMMAND_ACTION_COURSE:
+		case COMMAND_ACTION_COURSE_TRUE:
+		case COMMAND_ACTION_COURSE_MAG:
 			foundBoat->desiredCourse = cmd->values[0].i;
+			foundBoat->courseMagnetic = (cmd->action == COMMAND_ACTION_COURSE_MAG);
 			break;
 	}
 }
@@ -705,7 +707,7 @@ static void perfAddAndStartRandomBoat()
 
 
 	// Set course.
-	cmd.action = COMMAND_ACTION_COURSE;
+	cmd.action = (PerfUtils_getRandomBool() ? COMMAND_ACTION_COURSE_TRUE : COMMAND_ACTION_COURSE_MAG);
 	cmd.values[0].i = PerfUtils_getRandomCourse();
 
 	handleCommand(&cmd);

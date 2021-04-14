@@ -31,8 +31,8 @@
 typedef struct
 {
 	proteus_GeoPos pos;
-	proteus_GeoVec v;
-	proteus_GeoVec vGround;
+	proteus_GeoVec v; // Always using true compass angles.
+	proteus_GeoVec vGround; // Always using true compass angles.
 
 	double desiredCourse;
 	double distanceTravelled;
@@ -46,14 +46,15 @@ typedef struct
 	bool movingToSea;
 
 	bool setImmediateDesiredCourse;
+	bool courseMagnetic;
 } Boat;
 
 
 int Boat_init();
 
 Boat* Boat_new(double lat, double lon, int boatType, int boatFlags);
-void Boat_advance(Boat* b);
-bool Boat_isHeadingTowardWater(Boat* b);
+void Boat_advance(Boat* b, time_t curTime);
+bool Boat_isHeadingTowardWater(const Boat* b, time_t curTime);
 
 
 #endif // _Boat_h_

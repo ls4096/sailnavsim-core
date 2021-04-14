@@ -35,10 +35,12 @@
 #define MOVE_TO_WATER_DISTANCE (100)
 
 
-static void updateCourse(Boat* b);
+static void updateCourse(Boat* b, time_t curTime);
 static void updateVelocity(Boat* b, const proteus_Weather* wx, bool odv, const proteus_OceanData* od, bool wdv, const proteus_WaveData* wd);
 static void updateDamage(Boat* b, double windGust, bool takeDamage);
 static void stopBoat(Boat* b);
+static double getDesiredCourseTrue(const Boat* b, time_t t);
+static double convertMag2True(const proteus_GeoPos* pos, time_t t, double compassMag);
 static double oceanIceSpeedAdjustmentFactor(bool valid, const proteus_OceanData* od);
 static double boatDamageSpeedAdjustmentFactor(const Boat* b);
 static double waveSpeedAdjustmentFactor(const Boat* b, bool valid, const proteus_WaveData* wd);
@@ -75,11 +77,12 @@ Boat* Boat_new(double lat, double lon, int boatType, int boatFlags)
 	boat->movingToSea = false;
 
 	boat->setImmediateDesiredCourse = true;
+	boat->courseMagnetic = (boatFlags & BOAT_FLAG_CELESTIAL); // Default magnetic for celestial navigation mode.
 
 	return boat;
 }
 
-void Boat_advance(Boat* b)
+void Boat_advance(Boat* b, time_t curTime)
 {
 	if (b->stop)
 	{
@@ -114,17 +117,17 @@ void Boat_advance(Boat* b)
 			{
 				// Probably the first time the boat is being started,
 				// so set the course to the desired course immediately.
-				b->v.angle = b->desiredCourse;
+				b->v.angle = getDesiredCourseTrue(b, curTime);
 				b->setImmediateDesiredCourse = false;
 			}
 		}
 		else
 		{
 			// Not on water, so check that there is water ahead of us.
-			if (Boat_isHeadingTowardWater(b))
+			if (Boat_isHeadingTowardWater(b, curTime))
 			{
 				// Water ahead, so proceed at fixed speed toward it.
-				b->v.angle = b->desiredCourse;
+				b->v.angle = getDesiredCourseTrue(b, curTime);
 				b->v.mag = 0.5;
 
 				b->vGround = b->v;
@@ -175,7 +178,7 @@ void Boat_advance(Boat* b)
 		updateDamage(b, wx.windGust, true);
 
 		// Update course, if necessary.
-		updateCourse(b);
+		updateCourse(b, curTime);
 
 		// Update boat velocity.
 		updateVelocity(b, &wx, oceanDataValid, &od, waveDataValid, &wd);
@@ -215,15 +218,14 @@ void Boat_advance(Boat* b)
 	}
 }
 
-bool Boat_isHeadingTowardWater(Boat* b)
+bool Boat_isHeadingTowardWater(const Boat* b, time_t curTime)
 {
 	int d = 0;
 
-	proteus_GeoPos pos;
-	memcpy(&pos, &b->pos, sizeof(proteus_GeoPos));
+	proteus_GeoPos pos = b->pos;
 
 	proteus_GeoVec v;
-	v.angle = b->desiredCourse;
+	v.angle = getDesiredCourseTrue(b, curTime);
 	v.mag = 10.0;
 
 	while (d <= MOVE_TO_WATER_DISTANCE + 10)
@@ -241,15 +243,16 @@ bool Boat_isHeadingTowardWater(Boat* b)
 }
 
 
-static void updateCourse(Boat* b)
+static void updateCourse(Boat* b, time_t curTime)
 {
-	const double courseDiff = proteus_Compass_diff(b->v.angle, b->desiredCourse);
+	const double desiredCourseTrue = getDesiredCourseTrue(b, curTime);
+	const double courseDiff = proteus_Compass_diff(b->v.angle, desiredCourseTrue);
 	const double courseChangeRate = BoatWindResponse_getCourseChangeRate(b->boatType);
 
 	if (fabs(courseDiff) <= courseChangeRate)
 	{
 		// Desired course is close enough to current course.
-		b->v.angle = b->desiredCourse;
+		b->v.angle = desiredCourseTrue;
 		return;
 	}
 
@@ -362,6 +365,35 @@ static void stopBoat(Boat* b)
 	b->vGround = b->v;
 
 	// FIXME: Should probably also set Boat.started to 0 in the database (if we're using it).
+}
+
+static double getDesiredCourseTrue(const Boat* b, time_t t)
+{
+	if (b->courseMagnetic)
+	{
+		return convertMag2True(&b->pos, t, b->desiredCourse);
+	}
+	else
+	{
+		return b->desiredCourse;
+	}
+}
+
+static double convertMag2True(const proteus_GeoPos* pos, time_t t, double compassMag)
+{
+	const double magDec = proteus_Compass_magdec(pos, t);
+
+	double compassTrue = compassMag + magDec;
+	if (compassTrue < 0.0)
+	{
+		compassTrue += 360.0;
+	}
+	else if (compassTrue > 360.0)
+	{
+		compassTrue -= 360.0;
+	}
+
+	return compassTrue;
 }
 
 static double oceanIceSpeedAdjustmentFactor(bool valid, const proteus_OceanData* od)

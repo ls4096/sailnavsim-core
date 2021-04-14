@@ -33,7 +33,8 @@
 
 static const char* CMD_ACTION_STR_STOP = "stop";
 static const char* CMD_ACTION_STR_START = "start";
-static const char* CMD_ACTION_STR_COURSE = "course";
+static const char* CMD_ACTION_STR_COURSE_TRUE = "course";
+static const char* CMD_ACTION_STR_COURSE_MAG = "course_m";
 
 static const char* CMD_ACTION_STR_ADD_BOAT = "add";
 static const char* CMD_ACTION_STR_REMOVE_BOAT = "remove";
@@ -175,6 +176,13 @@ static void handleCmd(char* cmdStr)
 		goto fail;
 	}
 
+	// Remove trailing newline, if present.
+	const size_t slen = strlen(s);
+	if (slen > 0 && s[slen - 1] == '\n')
+	{
+		s[slen - 1] = 0;
+	}
+
 	if ((cmd->action = getAction(s)) == COMMAND_ACTION_INVALID)
 	{
 		goto fail;
@@ -230,23 +238,27 @@ fail:
 
 static int getAction(const char* s)
 {
-	if (strncmp(CMD_ACTION_STR_STOP, s, strlen(CMD_ACTION_STR_STOP)) == 0)
+	if (strcmp(CMD_ACTION_STR_STOP, s) == 0)
 	{
 		return COMMAND_ACTION_STOP;
 	}
-	else if (strncmp(CMD_ACTION_STR_START, s, strlen(CMD_ACTION_STR_START)) == 0)
+	else if (strcmp(CMD_ACTION_STR_START, s) == 0)
 	{
 		return COMMAND_ACTION_START;
 	}
-	else if (strncmp(CMD_ACTION_STR_COURSE, s, strlen(CMD_ACTION_STR_COURSE)) == 0)
+	else if (strcmp(CMD_ACTION_STR_COURSE_TRUE, s) == 0)
 	{
-		return COMMAND_ACTION_COURSE;
+		return COMMAND_ACTION_COURSE_TRUE;
 	}
-	else if (strncmp(CMD_ACTION_STR_ADD_BOAT, s, strlen(CMD_ACTION_STR_ADD_BOAT)) == 0)
+	else if (strcmp(CMD_ACTION_STR_COURSE_MAG, s) == 0)
+	{
+		return COMMAND_ACTION_COURSE_MAG;
+	}
+	else if (strcmp(CMD_ACTION_STR_ADD_BOAT, s) == 0)
 	{
 		return COMMAND_ACTION_ADD_BOAT;
 	}
-	else if (strncmp(CMD_ACTION_STR_REMOVE_BOAT, s, strlen(CMD_ACTION_STR_REMOVE_BOAT)) == 0)
+	else if (strcmp(CMD_ACTION_STR_REMOVE_BOAT, s) == 0)
 	{
 		return COMMAND_ACTION_REMOVE_BOAT;
 	}
@@ -258,7 +270,8 @@ static const uint8_t* getActionExpectedValueTypes(int action)
 {
 	switch (action)
 	{
-		case COMMAND_ACTION_COURSE:
+		case COMMAND_ACTION_COURSE_TRUE:
+		case COMMAND_ACTION_COURSE_MAG:
 			return CMD_ACTION_COURSE_VALS;
 		case COMMAND_ACTION_ADD_BOAT:
 			return CMD_ACTION_ADD_BOAT_VALS;
@@ -271,7 +284,8 @@ static bool areValuesValidForAction(int action, CommandValue values[COMMAND_MAX_
 {
 	switch (action)
 	{
-		case COMMAND_ACTION_COURSE:
+		case COMMAND_ACTION_COURSE_TRUE:
+		case COMMAND_ACTION_COURSE_MAG:
 		{
 			return (values[0].i >= 0 && values[0].i <= 360);
 		}

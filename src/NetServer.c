@@ -40,20 +40,22 @@
 #define WORKER_THREAD_NAME_PREFIX "NSWorker"
 
 
-#define REQ_TYPE_INVALID		(0)
-#define REQ_TYPE_GET_WIND		(1)
-#define REQ_TYPE_GET_WIND_GUST		(2)
-#define REQ_TYPE_GET_OCEAN_CURRENT	(3)
-#define REQ_TYPE_GET_SEA_ICE		(4)
-#define REQ_TYPE_GET_WAVE_HEIGHT	(5)
-#define REQ_TYPE_GET_BOAT_DATA		(6)
+#define REQ_TYPE_INVALID				(0)
+#define REQ_TYPE_GET_WIND				(1)
+#define REQ_TYPE_GET_WIND_GUST				(2)
+#define REQ_TYPE_GET_OCEAN_CURRENT			(3)
+#define REQ_TYPE_GET_SEA_ICE				(4)
+#define REQ_TYPE_GET_WAVE_HEIGHT			(5)
+#define REQ_TYPE_GET_BOAT_DATA				(6)
+#define REQ_TYPE_GET_BOAT_DATA_NO_CELESTIAL		(7)
 
-static const char* REQ_STR_GET_WIND =		"wind";
-static const char* REQ_STR_GET_WIND_GUST =	"wind_gust";
-static const char* REQ_STR_GET_OCEAN_CURRENT =	"ocean_current";
-static const char* REQ_STR_GET_SEA_ICE =	"sea_ice";
-static const char* REQ_STR_GET_WAVE_HEIGHT =	"wave_height";
-static const char* REQ_STR_GET_BOAT_DATA =	"bd";
+static const char* REQ_STR_GET_WIND =			"wind";
+static const char* REQ_STR_GET_WIND_GUST =		"wind_gust";
+static const char* REQ_STR_GET_OCEAN_CURRENT =		"ocean_current";
+static const char* REQ_STR_GET_SEA_ICE =		"sea_ice";
+static const char* REQ_STR_GET_WAVE_HEIGHT =		"wave_height";
+static const char* REQ_STR_GET_BOAT_DATA =		"bd";
+static const char* REQ_STR_GET_BOAT_DATA_NO_CELESTIAL =	"bd_nc";
 
 
 #define REQ_MAX_ARG_COUNT (2)
@@ -95,7 +97,7 @@ static bool areValuesValidForReqType(int reqType, ReqValue values[REQ_MAX_ARG_CO
 static void populateWindResponse(char* buf, size_t bufSize, proteus_GeoPos* pos, bool gust);
 static void populateOceanResponse(char* buf, size_t bufSize, proteus_GeoPos* pos, bool seaIce);
 static void populateWaveResponse(char* buf, size_t bufSize, proteus_GeoPos* pos);
-static void populateBoatDataResponse(char* buf, size_t bufSize, const char* key);
+static void populateBoatDataResponse(char* buf, size_t bufSize, const char* key, bool noCelestial);
 
 
 static pthread_t _netServerThread;
@@ -631,7 +633,8 @@ static int handleMessage(int fd, char* reqStr)
 			populateWaveResponse(buf, MSG_BUF_SIZE, &pos);
 			break;
 		case REQ_TYPE_GET_BOAT_DATA:
-			populateBoatDataResponse(buf, MSG_BUF_SIZE, values[0].s);
+		case REQ_TYPE_GET_BOAT_DATA_NO_CELESTIAL:
+			populateBoatDataResponse(buf, MSG_BUF_SIZE, values[0].s, (reqType == REQ_TYPE_GET_BOAT_DATA_NO_CELESTIAL));
 			break;
 		default:
 			goto fail;
@@ -679,29 +682,33 @@ static void incCounter(int ctr)
 
 static int getReqType(const char* s)
 {
-	if (strncmp(REQ_STR_GET_WIND, s, strlen(s)) == 0)
+	if (strcmp(REQ_STR_GET_WIND, s) == 0)
 	{
 		return REQ_TYPE_GET_WIND;
 	}
-	else if (strncmp(REQ_STR_GET_WIND_GUST, s, strlen(s)) == 0)
+	else if (strcmp(REQ_STR_GET_WIND_GUST, s) == 0)
 	{
 		return REQ_TYPE_GET_WIND_GUST;
 	}
-	else if (strncmp(REQ_STR_GET_OCEAN_CURRENT, s, strlen(s)) == 0)
+	else if (strcmp(REQ_STR_GET_OCEAN_CURRENT, s) == 0)
 	{
 		return REQ_TYPE_GET_OCEAN_CURRENT;
 	}
-	else if (strncmp(REQ_STR_GET_SEA_ICE, s, strlen(s)) == 0)
+	else if (strcmp(REQ_STR_GET_SEA_ICE, s) == 0)
 	{
 		return REQ_TYPE_GET_SEA_ICE;
 	}
-	else if (strncmp(REQ_STR_GET_WAVE_HEIGHT, s, strlen(s)) == 0)
+	else if (strcmp(REQ_STR_GET_WAVE_HEIGHT, s) == 0)
 	{
 		return REQ_TYPE_GET_WAVE_HEIGHT;
 	}
-	else if (strncmp(REQ_STR_GET_BOAT_DATA, s, strlen(s)) == 0)
+	else if (strcmp(REQ_STR_GET_BOAT_DATA, s) == 0)
 	{
 		return REQ_TYPE_GET_BOAT_DATA;
+	}
+	else if (strcmp(REQ_STR_GET_BOAT_DATA_NO_CELESTIAL, s) == 0)
+	{
+		return REQ_TYPE_GET_BOAT_DATA_NO_CELESTIAL;
 	}
 
 	return REQ_TYPE_INVALID;
@@ -718,6 +725,7 @@ static const uint8_t* getReqExpectedValueTypes(int reqType)
 		case REQ_TYPE_GET_WAVE_HEIGHT:
 			return REQ_VALS_LAT_LON;
 		case REQ_TYPE_GET_BOAT_DATA:
+		case REQ_TYPE_GET_BOAT_DATA_NO_CELESTIAL:
 			return REQ_VALS_BOAT_DATA;
 	}
 
@@ -795,7 +803,7 @@ static void populateWaveResponse(char* buf, size_t bufSize, proteus_GeoPos* pos)
 			valid ? wd.waveHeight : INVALID_DOUBLE_VALUE);
 }
 
-static void populateBoatDataResponse(char* buf, size_t bufSize, const char* key)
+static void populateBoatDataResponse(char* buf, size_t bufSize, const char* key, bool noCelestial)
 {
 	if (BoatRegistry_OK != BoatRegistry_rdlock())
 	{
@@ -812,9 +820,16 @@ static void populateBoatDataResponse(char* buf, size_t bufSize, const char* key)
 
 	if (boat)
 	{
-		pos = boat->pos;
-		v = boat->v;
-		vGround = boat->vGround;
+		if (noCelestial && (boat->boatFlags & BOAT_FLAG_CELESTIAL))
+		{
+			boat = 0;
+		}
+		else
+		{
+			pos = boat->pos;
+			v = boat->v;
+			vGround = boat->vGround;
+		}
 	}
 
 	if (BoatRegistry_OK != BoatRegistry_unlock())
@@ -825,7 +840,7 @@ static void populateBoatDataResponse(char* buf, size_t bufSize, const char* key)
 	if (boat)
 	{
 		snprintf(buf, bufSize, "%s,%s,ok,%.6f,%.6f,%.1f,%.2f,%.1f,%.2f\n",
-				REQ_STR_GET_BOAT_DATA,
+				noCelestial ? REQ_STR_GET_BOAT_DATA_NO_CELESTIAL : REQ_STR_GET_BOAT_DATA,
 				key,
 				pos.lat,
 				pos.lon,
@@ -836,6 +851,6 @@ static void populateBoatDataResponse(char* buf, size_t bufSize, const char* key)
 	}
 	else
 	{
-		snprintf(buf, bufSize, "%s,%s,noboat\n", REQ_STR_GET_BOAT_DATA, key);
+		snprintf(buf, bufSize, "%s,%s,noboat\n", (noCelestial ? REQ_STR_GET_BOAT_DATA_NO_CELESTIAL : REQ_STR_GET_BOAT_DATA), key);
 	}
 }
