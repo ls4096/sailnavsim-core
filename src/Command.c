@@ -55,12 +55,12 @@ static const uint8_t CMD_ACTION_ADD_BOAT_VALS[COMMAND_MAX_ARG_COUNT] = { CMD_VAL
 
 
 static void* commandThreadMain(void* arg);
-static void handleCmd(char* cmdStr);
+static int handleCmd(char* cmdStr);
 
 static int getAction(const char* s);
 static const uint8_t* getActionExpectedValueTypes(int action);
 static bool areValuesValidForAction(int action, CommandValue values[COMMAND_MAX_ARG_COUNT]);
-static void queueCmd(Command* cmd);
+static int queueCmd(Command* cmd);
 
 
 static const char* _cmdsInputPath = 0;
@@ -127,6 +127,11 @@ Command* Command_next()
 	return cmd;
 }
 
+int Command_add(char* cmdStr)
+{
+	return handleCmd(cmdStr);
+}
+
 
 #define COMMAND_BUF_SIZE (1024)
 
@@ -156,7 +161,7 @@ static void* commandThreadMain(void* arg)
 	return 0;
 }
 
-static void handleCmd(char* cmdStr)
+static int handleCmd(char* cmdStr)
 {
 	char* s;
 	char* t;
@@ -225,8 +230,7 @@ static void handleCmd(char* cmdStr)
 		goto fail;
 	}
 
-	queueCmd(cmd);
-	return;
+	return queueCmd(cmd);
 
 fail:
 	if (cmd->name)
@@ -234,6 +238,8 @@ fail:
 		free(cmd->name);
 	}
 	free(cmd);
+
+	return -1;
 }
 
 static int getAction(const char* s)
@@ -302,12 +308,12 @@ static bool areValuesValidForAction(int action, CommandValue values[COMMAND_MAX_
 	return true;
 }
 
-static void queueCmd(Command* cmd)
+static int queueCmd(Command* cmd)
 {
 	if (0 != pthread_mutex_lock(&_cmdsLock))
 	{
 		ERRLOG("queueCmd: Failed to lock cmds mutex!");
-		return;
+		return -1;
 	}
 
 	if (_cmds == 0)
@@ -325,4 +331,6 @@ static void queueCmd(Command* cmd)
 	{
 		ERRLOG("queueCmd: Failed to unlock cmds mutex!");
 	}
+
+	return 0;
 }

@@ -32,6 +32,7 @@
 
 #include "NetServer.h"
 #include "BoatRegistry.h"
+#include "Command.h"
 #include "ErrLog.h"
 
 
@@ -48,6 +49,7 @@
 #define REQ_TYPE_GET_WAVE_HEIGHT			(5)
 #define REQ_TYPE_GET_BOAT_DATA				(6)
 #define REQ_TYPE_GET_BOAT_DATA_NO_CELESTIAL		(7)
+#define REQ_TYPE_BOAT_CMD				(8)
 
 static const char* REQ_STR_GET_WIND =			"wind";
 static const char* REQ_STR_GET_WIND_GUST =		"wind_gust";
@@ -56,6 +58,7 @@ static const char* REQ_STR_GET_SEA_ICE =		"sea_ice";
 static const char* REQ_STR_GET_WAVE_HEIGHT =		"wave_height";
 static const char* REQ_STR_GET_BOAT_DATA =		"bd";
 static const char* REQ_STR_GET_BOAT_DATA_NO_CELESTIAL =	"bd_nc";
+static const char* REQ_STR_BOAT_CMD =			"boatcmd";
 
 
 #define REQ_MAX_ARG_COUNT (2)
@@ -98,6 +101,7 @@ static void populateWindResponse(char* buf, size_t bufSize, proteus_GeoPos* pos,
 static void populateOceanResponse(char* buf, size_t bufSize, proteus_GeoPos* pos, bool seaIce);
 static void populateWaveResponse(char* buf, size_t bufSize, proteus_GeoPos* pos);
 static void populateBoatDataResponse(char* buf, size_t bufSize, const char* key, bool noCelestial);
+static void populateBoatCmdResponse(char* buf, size_t bufSize, char** tok);
 
 
 static pthread_t _netServerThread;
@@ -636,6 +640,9 @@ static int handleMessage(int fd, char* reqStr)
 		case REQ_TYPE_GET_BOAT_DATA_NO_CELESTIAL:
 			populateBoatDataResponse(buf, MSG_BUF_SIZE, values[0].s, (reqType == REQ_TYPE_GET_BOAT_DATA_NO_CELESTIAL));
 			break;
+		case REQ_TYPE_BOAT_CMD:
+			populateBoatCmdResponse(buf, MSG_BUF_SIZE, &t);
+			break;
 		default:
 			goto fail;
 	}
@@ -709,6 +716,10 @@ static int getReqType(const char* s)
 	else if (strcmp(REQ_STR_GET_BOAT_DATA_NO_CELESTIAL, s) == 0)
 	{
 		return REQ_TYPE_GET_BOAT_DATA_NO_CELESTIAL;
+	}
+	else if (strcmp(REQ_STR_BOAT_CMD, s) == 0)
+	{
+		return REQ_TYPE_BOAT_CMD;
 	}
 
 	return REQ_TYPE_INVALID;
@@ -853,4 +864,20 @@ static void populateBoatDataResponse(char* buf, size_t bufSize, const char* key,
 	{
 		snprintf(buf, bufSize, "%s,%s,noboat\n", (noCelestial ? REQ_STR_GET_BOAT_DATA_NO_CELESTIAL : REQ_STR_GET_BOAT_DATA), key);
 	}
+}
+
+static void populateBoatCmdResponse(char* buf, size_t bufSize, char** tok)
+{
+	int rc = -1;
+	char* s;
+
+	if ((s = strtok_r(0, "\n", tok)) == 0)
+	{
+		goto fail;
+	}
+
+	rc = Command_add(s);
+
+fail:
+	snprintf(buf, bufSize, "%s,%s\n", REQ_STR_BOAT_CMD, (rc == 0) ? "ok" : "fail");
 }

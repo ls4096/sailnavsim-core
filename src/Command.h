@@ -52,6 +52,7 @@ struct Command
 
 int Command_init(const char* cmdsInputPath);
 Command* Command_next();
+int Command_add(char* cmdStr);
 
 
 #endif // _Command_h_
