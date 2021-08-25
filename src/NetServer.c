@@ -119,6 +119,12 @@ int NetServer_init(unsigned int port, unsigned int workerThreads)
 	ERRLOG1("Listening on port %d", port);
 
 	unsigned int* wt = malloc(sizeof(unsigned int));
+	if (!wt)
+	{
+		ERRLOG("Failed to alloc arg wt for thread!");
+		return -1;
+	}
+
 	*wt = workerThreads;
 
 	if (0 != pthread_create(&_netServerThread, 0, &netServerThreadMain, wt))
@@ -236,6 +242,13 @@ static void* netServerThreadMain(void* arg)
 	for (unsigned int i = 0; i < workerThreadCount; i++)
 	{
 		unsigned int* workerArg = malloc(sizeof(unsigned int));
+		if (!workerArg)
+		{
+			// TODO: Make this fatal?
+			ERRLOG1("Failed to alloc workerArg for thread %u!", i);
+			continue;
+		}
+
 		*workerArg = i;
 		if (0 != pthread_create(workerThreads + i, 0, &netServerWorkerThreadMain, workerArg))
 		{

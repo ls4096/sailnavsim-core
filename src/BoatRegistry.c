@@ -54,8 +54,21 @@ int BoatRegistry_add(Boat* boat, const char* name)
 		return BoatRegistry_EXISTS;
 	}
 
-	BoatEntry* newEntry = (BoatEntry*) malloc(sizeof(BoatEntry));
+	BoatEntry* newEntry = malloc(sizeof(BoatEntry));
+	if (!newEntry)
+	{
+		ERRLOG("Failed to alloc BoatEntry!");
+		return BoatRegistry_FAILED;
+	}
+
 	newEntry->name = strdup(name);
+	if (!newEntry->name)
+	{
+		ERRLOG("Failed to alloc newEntry->name!");
+		free(newEntry);
+		return BoatRegistry_FAILED;
+	}
+
 	newEntry->boat = boat;
 
 	newEntry->next = 0;
@@ -75,7 +88,15 @@ int BoatRegistry_add(Boat* boat, const char* name)
 
 	const int bucket = hashName(name);
 
-	BoatEntryEntry* newEntryEntry = (BoatEntryEntry*) malloc(sizeof(BoatEntryEntry));
+	BoatEntryEntry* newEntryEntry = malloc(sizeof(BoatEntryEntry));
+	if (!newEntryEntry)
+	{
+		ERRLOG("Failed to alloc BoatEntryEntry!");
+		free(newEntry);
+		free(newEntry->name);
+		return BoatRegistry_FAILED;
+	}
+
 	newEntryEntry->e = newEntry;
 	newEntryEntry->next = 0;
 

@@ -81,7 +81,7 @@
 #define PERF_TEST_MAX_BOAT_COUNT (204800)
 
 
-static const char* VERSION_STRING = "SailNavSim version 1.9.1 (" __DATE__ " " __TIME__ ")";
+static const char* VERSION_STRING = "SailNavSim version 1.9.2 (" __DATE__ " " __TIME__ ")";
 
 
 static int parseArgs(int argc, char** argv);
@@ -252,7 +252,16 @@ int main(int argc, char** argv)
 		{
 			// Log boat data once every ITERATIONS_PER_LOG iterations.
 			const int iter = (ITERATIONS_PER_LOG >= 2) ? (curTime % ITERATIONS_PER_LOG) : 1;
-			const bool doLog = perfTest ? false : ((ITERATIONS_PER_LOG >= 2) ? (iter < lastIter) : false);
+
+			bool doLog = false;
+			if (!perfTest && (ITERATIONS_PER_LOG >= 2) && (iter < lastIter))
+			{
+				// Write boat logs if
+				//  1. this is not a performance test run, and
+				//  2. iterations per log is at least 2, and
+				//  3. iteration number (as computed above) has been "reset" to less than the value of the last iteration.
+				doLog = true;
+			}
 
 			lastIter = iter;
 
@@ -261,8 +270,27 @@ int main(int argc, char** argv)
 			if (doLog)
 			{
 				// One log entry and (maximum) one celestial sight per boat on this iteration.
-				logEntries = (LogEntry*) malloc(boatCount * sizeof(LogEntry));
-				sights = (CelestialSight*) malloc(boatCount * sizeof(CelestialSight));
+
+				logEntries = malloc(boatCount * sizeof(LogEntry));
+				if (!logEntries)
+				{
+					ERRLOG("Failed to alloc logEntries!");
+				}
+
+				sights = malloc(boatCount * sizeof(CelestialSight));
+				if (!sights)
+				{
+					ERRLOG("Failed to alloc sights!");
+				}
+
+				if (!logEntries || !sights)
+				{
+					// Something failed to allocate memory, so we skip logs this time.
+					doLog = false;
+
+					free(logEntries);
+					free(sights);
+				}
 			}
 
 			int ilog = 0;
@@ -317,20 +345,28 @@ int main(int argc, char** argv)
 			if (doLog)
 			{
 				CelestialSightEntry* csEntries = malloc(totalSights * sizeof(CelestialSightEntry));
-				CelestialSightEntry* nextEntry = csEntries;
-				for (int i = 0; i < boatCount; i++)
+				if (csEntries)
 				{
-					if (sights[i].obj >= 0)
+					CelestialSightEntry* nextEntry = csEntries;
+					for (int i = 0; i < boatCount; i++)
 					{
-						nextEntry->time = curTime;
-						nextEntry->boatName = logEntries[i].boatName; // Shallow copy of string suffices here, since csEntries has same lifetime as logEntries.
-						nextEntry->obj = sights[i].obj;
-						nextEntry->az = sights[i].coord.az;
-						nextEntry->alt = sights[i].coord.alt;
-						nextEntry->compassMagDec = proteus_Compass_magdec(&logEntries[i].boatPos, curTime);
+						if (sights[i].obj >= 0)
+						{
+							nextEntry->time = curTime;
+							nextEntry->boatName = logEntries[i].boatName; // Shallow copy of string suffices here, since csEntries has same lifetime as logEntries.
+							nextEntry->obj = sights[i].obj;
+							nextEntry->az = sights[i].coord.az;
+							nextEntry->alt = sights[i].coord.alt;
+							nextEntry->compassMagDec = proteus_Compass_magdec(&logEntries[i].boatPos, curTime);
 
-						nextEntry++;
+							nextEntry++;
+						}
 					}
+				}
+				else
+				{
+					ERRLOG("Failed to alloc csEntries!");
+					totalSights = 0;
 				}
 
 				free(sights);
@@ -587,6 +623,12 @@ static void handleBoatRegistryCommand(Command* cmd)
 		case COMMAND_ACTION_ADD_BOAT:
 		{
 			Boat* boat = Boat_new(cmd->values[0].d, cmd->values[1].d, cmd->values[2].i, cmd->values[3].i);
+			if (!boat)
+			{
+				ERRLOG("handleBoatRegistryCommand: Failed to create new Boat!");
+				break;
+			}
+
 			if (BoatRegistry_OK != BoatRegistry_add(boat, cmd->name))
 			{
 				free(boat);

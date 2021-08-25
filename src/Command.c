@@ -166,7 +166,13 @@ static int handleCmd(char* cmdStr)
 	char* s;
 	char* t;
 
-	Command* cmd = (Command*) malloc(sizeof(Command));
+	Command* cmd = malloc(sizeof(Command));
+	if (!cmd)
+	{
+		ERRLOG("Failed to alloc cmd!");
+		goto fail;
+	}
+
 	cmd->name = 0;
 	cmd->next = 0;
 
@@ -174,7 +180,13 @@ static int handleCmd(char* cmdStr)
 	{
 		goto fail;
 	}
+
 	cmd->name = strdup(s);
+	if (!cmd->name)
+	{
+		ERRLOG("Failed to alloc cmd->name!");
+		goto fail;
+	}
 
 	if ((s = strtok_r(0, ",", &t)) == 0)
 	{
@@ -233,7 +245,7 @@ static int handleCmd(char* cmdStr)
 	return queueCmd(cmd);
 
 fail:
-	if (cmd->name)
+	if (cmd && cmd->name)
 	{
 		free(cmd->name);
 	}

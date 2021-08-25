@@ -56,7 +56,11 @@ int Boat_init()
 
 Boat* Boat_new(double lat, double lon, int boatType, int boatFlags)
 {
-	Boat* boat = (Boat*) malloc(sizeof(Boat));
+	Boat* boat = malloc(sizeof(Boat));
+	if (!boat)
+	{
+		return 0;
+	}
 
 	boat->pos.lat = lat;
 	boat->pos.lon = lon;

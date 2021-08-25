@@ -143,6 +143,8 @@ int Logger_init(const char* csvLoggerDir, const char* sqliteDbFilename)
 	return 0;
 }
 
+static char* LOGGER_DEFAULT_LOG_BOAT_NAME = "__default__";
+
 void Logger_fillLogEntry(Boat* boat, const char* name, time_t t, bool reportVisible, LogEntry* log)
 {
 	if (!_init)
@@ -165,6 +167,12 @@ void Logger_fillLogEntry(Boat* boat, const char* name, time_t t, bool reportVisi
 
 	log->time = t;
 	log->boatName = strdup(name);
+	if (!log->boatName)
+	{
+		// Failed to allocate memory, so use a default boat name to continue.
+		ERRLOG1("Failed to strdup boat name (%s)! Using default boat name instead.", name);
+		log->boatName = LOGGER_DEFAULT_LOG_BOAT_NAME;
+	}
 	log->boatPos = boat->pos;
 	log->boatVecWater = boat->v;
 	log->boatVecGround = boat->vGround;
@@ -188,7 +196,12 @@ void Logger_writeLogs(LogEntry* logEntries, unsigned int lCount, CelestialSightE
 		return;
 	}
 
-	LogEntries* l = (LogEntries*) malloc(sizeof(LogEntries));
+	LogEntries* l = malloc(sizeof(LogEntries));
+	if (!l)
+	{
+		ERRLOG("writeLogs: Alloc failed for LogEntries!");
+		return;
+	}
 
 	l->logs = logEntries;
 	l->lCount = lCount;
@@ -267,7 +280,10 @@ static void* loggerThreadMain(void* arg)
 
 			for (int i = 0; i < lCount; i++)
 			{
-				free(entries[i].boatName);
+				if (entries[i].boatName != LOGGER_DEFAULT_LOG_BOAT_NAME)
+				{
+					free(entries[i].boatName);
+				}
 			}
 
 			free(entries);

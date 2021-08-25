@@ -200,9 +200,21 @@ static BoatInitEntry* getNextSql()
 				double distanceTravelled = sqlite3_column_double(_sqlStmtBoatLog, n++);
 				double damage = sqlite3_column_double(_sqlStmtBoatLog, n++);
 
-				BoatInitEntry* entry = (BoatInitEntry*) malloc(sizeof(BoatInitEntry));
+				BoatInitEntry* entry = malloc(sizeof(BoatInitEntry));
+				if (!entry)
+				{
+					ERRLOG("Failed to alloc BoatInitEntry!");
+					continue;
+				}
 
 				Boat* boat = Boat_new(lat, lon, boatType, boatFlags);
+				if (!boat)
+				{
+					ERRLOG("Failed to create new Boat!");
+					free(entry);
+					entry = 0;
+					continue;
+				}
 
 				boat->v.angle = course;
 				boat->v.mag = speed;
@@ -219,7 +231,19 @@ static BoatInitEntry* getNextSql()
 				}
 
 				entry->boat = boat;
+
 				entry->name = strdup(boatName);
+				if (!entry->name)
+				{
+					ERRLOG("Failed to alloc entry->name!");
+
+					free(entry);
+					entry = 0;
+					free(boat);
+					boat = 0;
+
+					continue;
+				}
 
 				return entry;
 			}
@@ -256,12 +280,36 @@ static BoatInitEntry* getNextSql()
 				double lat = sqlite3_column_double(stmt, 0);
 				double lon = sqlite3_column_double(stmt, 1);
 
-				entry = (BoatInitEntry*) malloc(sizeof(BoatInitEntry));
+				entry = malloc(sizeof(BoatInitEntry));
+				if (!entry)
+				{
+					ERRLOG("Failed to alloc BoatInitEntry!");
+					goto cleanup;
+				}
 
 				Boat* boat = Boat_new(lat, lon, boatType, boatFlags);
+				if (!boat)
+				{
+					ERRLOG("Failed to create new Boat!");
+					free(entry);
+					entry = 0;
+					goto cleanup;
+				}
 
 				entry->boat = boat;
+
 				entry->name = strdup(boatName);
+				if (!entry->name)
+				{
+					ERRLOG("Failed to alloc entry->name!");
+
+					free(entry);
+					entry = 0;
+					free(boat);
+					boat = 0;
+
+					goto cleanup;
+				}
 
 cleanup:
 				src = sqlite3_finalize(stmt);
@@ -326,9 +374,21 @@ static BoatInitEntry* getNextFile()
 			goto done;
 		}
 
-		BoatInitEntry* entry = (BoatInitEntry*) malloc(sizeof(BoatInitEntry));
+		BoatInitEntry* entry = malloc(sizeof(BoatInitEntry));
+		if (!entry)
+		{
+			ERRLOG("Failed to alloc BoatInitEntry!");
+			goto done;
+		}
 
 		Boat* boat = Boat_new(lat, lon, type, flags);
+		if (!boat)
+		{
+			ERRLOG("Failed to create new Boat!");
+			free(entry);
+			entry = 0;
+			goto done;
+		}
 
 		entry->boat = boat;
 		entry->name = name;
@@ -357,7 +417,13 @@ static int readBoatInitData(char* s, char** name, double* lat, double* lon, int*
 		rc = -1;
 		goto fail;
 	}
+
 	*name = strdup(w);
+	if (0 == *name)
+	{
+		rc = -6;
+		goto fail;
+	}
 
 	if ((w = strtok_r(0, ",", &t)) == 0)
 	{
