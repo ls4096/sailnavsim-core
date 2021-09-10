@@ -402,6 +402,42 @@ static const double IMPROVISED_LIFEBOAT_RESPONSE[] =
 #define IMPROVISED_LIFEBOAT_WAVE_EFFECT_RESISTANCE (50.0)
 
 
+/**
+ * Wind response factor lookup table for the "Volvo Ocean 65" sailing vessel
+ */
+static const double VOLVO_65_RESPONSE[] =
+{
+//	1	2	4	8	12	16	24	m/s
+
+	-0.10,	-0.10,	-0.10,	-0.10,	-0.10,	-0.10,	-0.10,	// 0 deg
+	-0.08,	-0.08,	-0.08,	-0.08,	-0.08,	-0.08,	-0.08,	// 10 deg
+	-0.05,	-0.05,	-0.05,	-0.05,	-0.05,	-0.05,	-0.05,	// 20 deg
+	0.000,	0.000,	0.000,	0.000,	0.000,	0.000,	0.000,	// 30 deg
+	0.867,	0.867,	1.000,	0.567,	0.485,	0.323,	0.217,  // 40 deg
+	1.333,	1.333,	1.250,	0.693,	0.570,	0.417,	0.292,	// 50 deg
+	1.667,	1.667,	1.333,	0.753,	0.635,	0.487,	0.341,	// 60 deg
+	1.700,	1.700,	1.383,	0.860,	0.725,	0.567,	0.397,	// 70 deg
+	1.800,	1.800,	1.500,	0.943,	0.825,	0.650,	0.455,	// 80 deg
+	1.833,	1.833,	1.533,	1.040,	0.890,	0.733,	0.513,	// 90 deg
+	1.533,	1.533,	1.500,	1.093,	0.950,	0.783,	0.548,	// 100 deg
+	1.233,	1.233,	1.367,	1.100,	0.980,	0.800,	0.560,	// 110 deg
+	0.933,	0.933,	1.150,	1.093,	0.955,	0.817,	0.580,	// 120 deg
+	0.767,	0.767,	0.933,	1.043,	0.960,	0.833,	0.600,	// 130 deg
+	0.700,	0.700,	0.717,	0.933,	0.905,	0.883,	0.645,	// 140 deg
+	0.567,	0.567,	0.500,	0.813,	0.833,	0.893,	0.661,	// 150 deg
+	0.300,	0.300,	0.417,	0.700,	0.725,	0.833,	0.608,	// 160 deg
+	0.267,	0.267,	0.367,	0.640,	0.660,	0.723,	0.521,	// 170 deg
+	0.250,	0.250,	0.300,	0.600,	0.640,	0.620,	0.440,	// 180 deg
+
+	0.00,	0.00,	0.00,	0.00,	0.00,	0.00,	0.00,	// Values on these two lines are never used, but we add them
+	0.00							// here to prevent reading garbage in calculations below.
+};
+
+#define VOLVO_65_COURSE_CHANGE_RATE (2.5)
+#define VOLVO_65_BOAT_INERTIA (25.0)
+#define VOLVO_65_WAVE_EFFECT_RESISTANCE (50.0)
+
+
 static const double* WIND_RESPONSES[] = {
 	SAILNAVSIM_CLASSIC_RESPONSE, // 0
 	SEASCAPE_18_RESPONSE, // 1
@@ -412,7 +448,8 @@ static const double* WIND_RESPONSES[] = {
 	BRIGANTINE_140_RESPONSE, // 6
 	MAXI_TRIMARAN_RESPONSE, // 7
 	IMOCA_60_RESPONSE, // 8
-	IMPROVISED_LIFEBOAT_RESPONSE // 9
+	IMPROVISED_LIFEBOAT_RESPONSE, // 9
+	VOLVO_65_RESPONSE // 10
 };
 
 static const double COURSE_CHANGE_RATES[] = {
@@ -425,7 +462,8 @@ static const double COURSE_CHANGE_RATES[] = {
 	BRIGANTINE_140_COURSE_CHANGE_RATE, // 6
 	MAXI_TRIMARAN_COURSE_CHANGE_RATE, // 7
 	IMOCA_60_COURSE_CHANGE_RATE, // 8
-	IMPROVISED_LIFEBOAT_COURSE_CHANGE_RATE // 9
+	IMPROVISED_LIFEBOAT_COURSE_CHANGE_RATE, // 9
+	VOLVO_65_COURSE_CHANGE_RATE // 10
 };
 
 static const double BOAT_INERTIAS[] = {
@@ -438,7 +476,8 @@ static const double BOAT_INERTIAS[] = {
 	BRIGANTINE_140_BOAT_INERTIA, // 6
 	MAXI_TRIMARAN_BOAT_INERTIA, // 7
 	IMOCA_60_BOAT_INERTIA, // 8
-	IMPROVISED_LIFEBOAT_BOAT_INERTIA // 9
+	IMPROVISED_LIFEBOAT_BOAT_INERTIA, // 9
+	VOLVO_65_BOAT_INERTIA // 10
 };
 
 static const double WAVE_EFFECT_RESISTANCES[] = {
@@ -451,10 +490,11 @@ static const double WAVE_EFFECT_RESISTANCES[] = {
 	BRIGANTINE_140_WAVE_EFFECT_RESISTANCE, // 6
 	MAXI_TRIMARAN_WAVE_EFFECT_RESISTANCE, // 7
 	IMOCA_60_WAVE_EFFECT_RESISTANCE, // 8
-	IMPROVISED_LIFEBOAT_WAVE_EFFECT_RESISTANCE // 9
+	IMPROVISED_LIFEBOAT_WAVE_EFFECT_RESISTANCE, // 9
+	VOLVO_65_WAVE_EFFECT_RESISTANCE // 10
 };
 
-static const int BOAT_TYPE_MAX = 9;
+static const int BOAT_TYPE_MAX = 10;
 
 
 double BoatWindResponse_getBoatSpeed(double windSpd, double angleFromWind, int boatType)
