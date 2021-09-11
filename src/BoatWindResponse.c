@@ -433,9 +433,9 @@ static const double VOLVO_65_RESPONSE[] =
 	0.00							// here to prevent reading garbage in calculations below.
 };
 
-#define VOLVO_65_COURSE_CHANGE_RATE (2.5)
-#define VOLVO_65_BOAT_INERTIA (25.0)
-#define VOLVO_65_WAVE_EFFECT_RESISTANCE (50.0)
+#define VOLVO_65_COURSE_CHANGE_RATE (2.25)
+#define VOLVO_65_BOAT_INERTIA (30.0)
+#define VOLVO_65_WAVE_EFFECT_RESISTANCE (175.0)
 
 
 static const double* WIND_RESPONSES[] = {
