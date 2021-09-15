@@ -53,7 +53,7 @@ double PerfUtils_getRandomLon()
 
 int PerfUtils_getRandomBoatType()
 {
-	return getRandInt(9);
+	return getRandInt(10);
 }
 
 int PerfUtils_getRandomBoatFlags()
