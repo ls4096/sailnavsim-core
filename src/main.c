@@ -26,6 +26,7 @@
 #include <proteus/proteus.h>
 #include <proteus/Compass.h>
 #include <proteus/GeoInfo.h>
+#include <proteus/GeoPos.h>
 #include <proteus/Logging.h>
 #include <proteus/Ocean.h>
 #include <proteus/ScalarConv.h>
@@ -81,7 +82,7 @@
 #define PERF_TEST_MAX_BOAT_COUNT (204800)
 
 
-static const char* VERSION_STRING = "SailNavSim version 1.10.0 (" __DATE__ " " __TIME__ ")";
+static const char* VERSION_STRING = "SailNavSim version 1.10.1 (" __DATE__ " " __TIME__ ")";
 
 
 static int parseArgs(int argc, char** argv);
@@ -451,7 +452,7 @@ int main(int argc, char** argv)
 
 			perfIter++;
 			continue;
-		} // End of performance testing control block.
+		} // End of performance testing control block inside main loop.
 
 
 		if (BoatRegistry_OK != BoatRegistry_wrlock())
@@ -514,6 +515,91 @@ int main(int argc, char** argv)
 			}
 		}
 	}
+
+
+	// If this is a performance test run, then run a few more tests before finishing.
+	if (perfTest)
+	{
+		static const size_t POSITION_COUNT = 4096;
+		static const unsigned int ITERATIONS = 1000000;
+
+		struct timespec t0;
+		struct timespec t1;
+		long nsTaken;
+
+
+		proteus_GeoPos* positions = malloc(POSITION_COUNT * sizeof(proteus_GeoPos));
+		for (size_t i = 0; i < POSITION_COUNT; i++)
+		{
+			positions[i].lat = PerfUtils_getRandomLat();
+			positions[i].lon = PerfUtils_getRandomLon();
+		}
+
+
+		// Test "near visible land" performance.
+		if (0 != clock_gettime(CLOCK_MONOTONIC, &t0))
+		{
+			ERRLOG1("clock_gettime failed! errno=%d", errno);
+			return -1;
+		}
+		unsigned int landCount = 0;
+		for (unsigned int i = 0; i < ITERATIONS; i++)
+		{
+			if (isApproximatelyNearVisibleLand(positions + (i % POSITION_COUNT), 24000.0))
+			{
+				landCount++;
+			}
+		}
+		if (0 != clock_gettime(CLOCK_MONOTONIC, &t1))
+		{
+			ERRLOG1("clock_gettime failed! errno=%d", errno);
+			return -1;
+		}
+		nsTaken = (t1.tv_nsec - t0.tv_nsec) + 1000000000L * (t1.tv_sec - t0.tv_sec);
+		printf("1M land visibility checks (visible: %u/%u): %.3fs\n", landCount, ITERATIONS, ((double) nsTaken) / 1000000000.0);
+
+
+		// Test "celestial sight shooting" performance.
+		if (0 != clock_gettime(CLOCK_MONOTONIC, &t0))
+		{
+			ERRLOG1("clock_gettime failed! errno=%d", errno);
+			return -1;
+		}
+		double azs = 0.0;
+		double alts = 0.0;
+		unsigned int sightCount = 0;
+		const time_t shotTime = time(0);
+		CelestialSight sight;
+		for (unsigned int i = 0; i < ITERATIONS; i++)
+		{
+			CelestialSight_shoot(
+					shotTime,
+					positions + (i % POSITION_COUNT),
+					0,
+					1013.25,
+					15.0,
+					&sight);
+			if (sight.obj != -1)
+			{
+				sightCount++;
+
+				azs += sight.coord.az;
+				alts += sight.coord.alt;
+			}
+		}
+		if (0 != clock_gettime(CLOCK_MONOTONIC, &t1))
+		{
+			ERRLOG1("clock_gettime failed! errno=%d", errno);
+			return -1;
+		}
+
+		const double az_avg = azs / ((double) sightCount);
+		const double alt_avg = alts / ((double) sightCount);
+
+		nsTaken = (t1.tv_nsec - t0.tv_nsec) + 1000000000L * (t1.tv_sec - t0.tv_sec);
+		printf("1M celestial sight attempts (shot: %u/%u, az_avg: %.3f, alt_avg: %.3f): %.3fs\n", sightCount, ITERATIONS, az_avg, alt_avg, ((double) nsTaken) / 1000000000.0);
+	} // End of performance testing control block outside main loop.
+
 
 	return 0;
 }
