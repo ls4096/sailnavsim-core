@@ -26,6 +26,7 @@
 #define BOAT_FLAG_TAKES_DAMAGE (0x01)
 #define BOAT_FLAG_WAVE_SPEED_EFFECT (0x02)
 #define BOAT_FLAG_CELESTIAL (0x04)
+#define BOAT_FLAG_CELESTIAL_WAVE_EFFECT (0x08)
 
 
 typedef struct
@@ -55,6 +56,7 @@ int Boat_init();
 Boat* Boat_new(double lat, double lon, int boatType, int boatFlags);
 void Boat_advance(Boat* b, time_t curTime);
 bool Boat_isHeadingTowardWater(const Boat* b, time_t curTime);
+bool Boat_getWaveAdjustedCelestialAzAlt(const Boat* b, double* az, double* alt);
 
 
 #endif // _Boat_h_

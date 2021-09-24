@@ -82,7 +82,7 @@
 #define PERF_TEST_MAX_BOAT_COUNT (204800)
 
 
-static const char* VERSION_STRING = "SailNavSim version 1.10.2 (" __DATE__ " " __TIME__ ")";
+static const char* VERSION_STRING = "SailNavSim version 1.11.0 (" __DATE__ " " __TIME__ ")";
 
 
 static int parseArgs(int argc, char** argv);
@@ -306,31 +306,59 @@ int main(int argc, char** argv)
 			BoatEntry* e = boats;
 			while (e)
 			{
-				Boat_advance(e->boat, curTime);
+				Boat* boat = e->boat;
+				Boat_advance(boat, curTime);
 
 				if (doLog)
 				{
 					bool isReportVisible = true;
 
-					if ((e->boat->boatFlags & BOAT_FLAG_CELESTIAL))
+					if ((boat->boatFlags & BOAT_FLAG_CELESTIAL))
 					{
+						// Boat is in celestial navigation mode.
 						proteus_Weather wx;
-						proteus_Weather_get(&e->boat->pos, &wx, false);
+						proteus_Weather_get(&boat->pos, &wx, false);
 
-						CelestialSight_shoot(curTime, &e->boat->pos, (int) roundf(wx.cloud), (double) wx.pressure, (double) wx.temp, sights + ilog);
+						CelestialSight_shoot(curTime, &boat->pos, (int) roundf(wx.cloud), (double) wx.pressure, (double) wx.temp, sights + ilog);
+
 						if (sights[ilog].obj >= 0)
 						{
-							totalSights++;
+							// We have successfully shot a sight.
+							if ((boat->boatFlags & BOAT_FLAG_CELESTIAL_WAVE_EFFECT))
+							{
+								// Waves affect sight accuracy.
+								double az = sights[ilog].coord.az;
+								double alt = sights[ilog].coord.alt;
+
+								if (Boat_getWaveAdjustedCelestialAzAlt(boat, &az, &alt))
+								{
+									// Adjusted values available, so update the sight.
+									sights[ilog].coord.az = az;
+									sights[ilog].coord.alt = alt;
+
+									totalSights++;
+								}
+								else
+								{
+									// No adjusted values available, so drop the sight.
+									sights[ilog].obj = -1;
+								}
+							}
+							else
+							{
+								// No wave effect on sight accuracy, so just move on.
+								totalSights++;
+							}
 						}
 
-						isReportVisible = isApproximatelyNearVisibleLand(&e->boat->pos, wx.visibility);
+						isReportVisible = isApproximatelyNearVisibleLand(&boat->pos, wx.visibility);
 					}
 					else
 					{
 						sights[ilog].obj = -1;
 					}
 
-					Logger_fillLogEntry(e->boat, e->name, curTime, isReportVisible, logEntries + ilog);
+					Logger_fillLogEntry(boat, e->name, curTime, isReportVisible, logEntries + ilog);
 
 					ilog++;
 				}

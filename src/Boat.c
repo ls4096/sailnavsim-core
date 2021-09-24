@@ -44,6 +44,7 @@ static double convertMag2True(const proteus_GeoPos* pos, time_t t, double compas
 static double oceanIceSpeedAdjustmentFactor(bool valid, const proteus_OceanData* od);
 static double boatDamageSpeedAdjustmentFactor(const Boat* b);
 static double waveSpeedAdjustmentFactor(const Boat* b, bool valid, const proteus_WaveData* wd);
+static double getRandDouble(double scale);
 
 static unsigned int _randSeed = 0;
 
@@ -149,10 +150,10 @@ void Boat_advance(Boat* b, time_t curTime)
 	}
 
 	proteus_OceanData od;
-	bool oceanDataValid = proteus_Ocean_get(&b->pos, &od);
+	const bool oceanDataValid = proteus_Ocean_get(&b->pos, &od);
 
 	proteus_WaveData wd;
-	bool waveDataValid = proteus_Wave_get(&b->pos, &wd);
+	const bool waveDataValid = proteus_Wave_get(&b->pos, &wd);
 
 	proteus_Weather wx;
 	proteus_Weather_get(&b->pos, &wx, true);
@@ -244,6 +245,53 @@ bool Boat_isHeadingTowardWater(const Boat* b, time_t curTime)
 	}
 
 	return false;
+}
+
+bool Boat_getWaveAdjustedCelestialAzAlt(const Boat* b, double* az, double* alt)
+{
+	if (!(b->boatFlags & BOAT_FLAG_CELESTIAL_WAVE_EFFECT))
+	{
+		// Boat flag for celestial wave effect is not set, so no adjustments to be made.
+		return true;
+	}
+
+	proteus_WaveData wd;
+	const bool waveDataValid = proteus_Wave_get(&b->pos, &wd);
+
+	if (!waveDataValid)
+	{
+		// No wave data available, so no adjustments to be made.
+		return true;
+	}
+
+	const double wh = wd.waveHeight;
+	const double wer = BoatWindResponse_getWaveEffectResistance(b->boatType);
+
+	double newAlt = *alt + (1.666667 * getRandDouble(wh) * getRandDouble(wh) / wer);
+	if (newAlt < 0.0)
+	{
+		// Adjusted altitude is below horizon.
+		return false;
+	}
+	else if (newAlt > 90.0)
+	{
+		newAlt = 90.0 - (newAlt - 90.0);
+	}
+
+	double newAz = *az + (100.0 * getRandDouble(wh) * getRandDouble(wh) / wer);
+	while (newAz < 0.0)
+	{
+		newAz += 360.0;
+	}
+	while (newAz >= 360.0)
+	{
+		newAz -= 360.0;
+	}
+
+	*alt = newAlt;
+	*az = newAz;
+
+	return true;
 }
 
 
@@ -428,4 +476,9 @@ static double waveSpeedAdjustmentFactor(const Boat* b, bool valid, const proteus
 	}
 
 	return 1.0;
+}
+
+static double getRandDouble(double scale)
+{
+	return ((double) ((rand_r(&_randSeed) % 257) - 128)) / 128.0 * scale;
 }
