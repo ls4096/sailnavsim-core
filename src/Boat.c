@@ -63,7 +63,7 @@ Boat* Boat_new(double lat, double lon, int boatType, int boatFlags)
 	}
 
 	boat->pos.lat = lat;
-	boat->pos.lon = lon;
+	boat->pos.lon = (lon < 180.0 ? lon : lon - 360.0);
 	boat->v.angle = 0.0;
 	boat->v.mag = 0.0;
 	boat->vGround.angle = 0.0;

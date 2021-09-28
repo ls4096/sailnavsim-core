@@ -505,11 +505,6 @@ double BoatWindResponse_getBoatSpeed(double windSpd, double angleFromWind, int b
 		return 0.0;
 	}
 
-	while (angleFromWind > 180.0)
-	{
-		angleFromWind -= 180.0;
-	}
-
 	const double angle = fabs(angleFromWind);
 	const int iAngle = ((int) angle) / 10;
 

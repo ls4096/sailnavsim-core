@@ -82,7 +82,7 @@
 #define PERF_TEST_MAX_BOAT_COUNT (204800)
 
 
-static const char* VERSION_STRING = "SailNavSim version 1.10.1 (" __DATE__ " " __TIME__ ")";
+static const char* VERSION_STRING = "SailNavSim version 1.10.2 (" __DATE__ " " __TIME__ ")";
 
 
 static int parseArgs(int argc, char** argv);
@@ -798,13 +798,33 @@ static bool isLandFoundOnCircle(const proteus_GeoPos* pos, double r, int n)
 			p.lat = -90.0;
 		}
 
-		if (p.lon > 180.0)
+		bool lonModified = false;
+		if (p.lon >= 180.0)
 		{
 			p.lon -= 360.0;
+			lonModified = true;
 		}
 		else if (p.lon < -180.0)
 		{
-			p.lat += 360.0;
+			p.lon += 360.0;
+			lonModified = true;
+		}
+
+		// Where our latitude is close to -90 or +90, the calculated longitude value may be very strange,
+		// so, if we modified the longitude above, we do one more check just to be sure...
+		if (lonModified && (p.lon < -180.0 || p.lon >= 180.0))
+		{
+			// Longitude still out of bounds!
+			if (p.lat >= 0)
+			{
+				// Northern hemisphere very near the pole, so it's all water.
+				return false;
+			}
+			else
+			{
+				// Southern hemisphere very near the pole, so it's all land.
+				return true;
+			}
 		}
 
 		if (!proteus_GeoInfo_isWater(&p))
