@@ -42,6 +42,8 @@ typedef struct
 	int boatType;
 	int boatFlags;
 
+	int startingFromLandCount;
+
 	bool stop;
 	bool sailsDown;
 	bool movingToSea;

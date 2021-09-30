@@ -31,8 +31,8 @@
 
 
 #define FORBIDDEN_LAT (0.0001)
-
 #define MOVE_TO_WATER_DISTANCE (100)
+#define STARTING_FROM_LAND_COUNTDOWN (10)
 
 
 static void updateCourse(Boat* b, time_t curTime);
@@ -76,6 +76,8 @@ Boat* Boat_new(double lat, double lon, int boatType, int boatFlags)
 
 	boat->boatType = boatType;
 	boat->boatFlags = boatFlags;
+
+	boat->startingFromLandCount = 0;
 
 	boat->stop = true;
 	boat->sailsDown = false;
@@ -195,6 +197,14 @@ void Boat_advance(Boat* b, time_t curTime)
 	if (oceanDataValid)
 	{
 		// Ocean data is valid, so add ocean current vector to "over ground" vector.
+
+		if (b->startingFromLandCount > 0)
+		{
+			// Boat has recently started from land, so diminish the effects of the current.
+			const double currentFactor = ((double)(STARTING_FROM_LAND_COUNTDOWN - b->startingFromLandCount)) / ((double) STARTING_FROM_LAND_COUNTDOWN);
+			od.current.mag *= currentFactor;
+		}
+
 		proteus_GeoVec_add(&b->vGround, &od.current);
 	}
 	else if (b->vGround.mag < 0.0)
@@ -210,6 +220,11 @@ void Boat_advance(Boat* b, time_t curTime)
 		}
 	}
 
+	if (b->startingFromLandCount > 0)
+	{
+		b->startingFromLandCount--;
+	}
+
 	// Advance boat by "over ground" vector.
 	proteus_GeoPos_advance(&b->pos, &b->vGround);
 
@@ -219,7 +234,9 @@ void Boat_advance(Boat* b, time_t curTime)
 	// Finally, check if we're still in water.
 	if (!proteus_GeoInfo_isWater(&b->pos))
 	{
+		// We're on land, so stop the boat and reset the land countdown value.
 		stopBoat(b);
+		b->startingFromLandCount = STARTING_FROM_LAND_COUNTDOWN;
 	}
 }
 
