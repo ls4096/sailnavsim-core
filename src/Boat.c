@@ -37,7 +37,7 @@
 
 static void updateCourse(Boat* b, time_t curTime);
 static void updateVelocity(Boat* b, const proteus_Weather* wx, bool odv, const proteus_OceanData* od, bool wdv, const proteus_WaveData* wd);
-static void updateDamage(Boat* b, double windGust, bool takeDamage);
+static void updateDamage(Boat* b, double windGust, double windAngle, bool takeDamage);
 static void stopBoat(Boat* b);
 static double getDesiredCourseTrue(const Boat* b, time_t t);
 static double convertMag2True(const proteus_GeoPos* pos, time_t t, double compassMag);
@@ -98,7 +98,7 @@ void Boat_advance(Boat* b, time_t curTime)
 		if (b->damage > 0.0)
 		{
 			// Possibly fix some boat damage.
-			updateDamage(b, -1.0, false);
+			updateDamage(b, -1.0, 0.0, false);
 		}
 
 		return;
@@ -163,7 +163,7 @@ void Boat_advance(Boat* b, time_t curTime)
 	if (b->sailsDown)
 	{
 		// Sails down, so velocity vector over water is 1/10 of wind.
-		proteus_GeoVec* windVec = &wx.wind;
+		const proteus_GeoVec* windVec = &wx.wind;
 
 		b->v.angle = windVec->angle + 180.0;
 		if (b->v.angle >= 360.0)
@@ -172,7 +172,7 @@ void Boat_advance(Boat* b, time_t curTime)
 		}
 
 		// With sails down, we do not take any additional damage, but we can still repair it.
-		updateDamage(b, wx.windGust, false);
+		updateDamage(b, wx.windGust, windVec->angle, false);
 
 		// NOTE: While sails are down, we intentionally do not take into account the boat damage speed adjustment factor.
 		b->v.mag = windVec->mag * 0.1 *
@@ -182,7 +182,7 @@ void Boat_advance(Boat* b, time_t curTime)
 	else
 	{
 		// Update boat damage.
-		updateDamage(b, wx.windGust, true);
+		updateDamage(b, wx.windGust, wx.wind.angle, true);
 
 		// Update course, if necessary.
 		updateCourse(b, curTime);
@@ -386,7 +386,7 @@ static void updateVelocity(Boat* b, const proteus_Weather* wx, bool odv, const p
 #define DAMAGE_TAKE_FACTOR (0.25 * KNOTS_IN_M_PER_S * KNOTS_IN_M_PER_S / 3600.0) // 0.25% (to max damage) per hour per knot squared above threshold.
 #define DAMAGE_REPAIR_FACTOR (0.25 * KNOTS_IN_M_PER_S / 3600.0) // 0.25% per hour per knot below threshold.
 
-static void updateDamage(Boat* b, double windGust, bool takeDamage)
+static void updateDamage(Boat* b, double windGust, double windAngle, bool takeDamage)
 {
 	if ((b->boatFlags & BOAT_FLAG_TAKES_DAMAGE) == 0)
 	{
@@ -399,6 +399,15 @@ static void updateDamage(Boat* b, double windGust, bool takeDamage)
 		proteus_Weather_get(&b->pos, &wx, true);
 
 		windGust = wx.windGust;
+		windAngle = wx.wind.angle;
+	}
+
+	if ((b->boatFlags & BOAT_FLAG_DAMAGE_APPARENT_WIND))
+	{
+		// Use apparent wind instead of true wind for damage calculations.
+		proteus_GeoVec appWindGust = { .angle = windAngle, .mag = windGust };
+		proteus_GeoVec_add(&appWindGust, &b->v);
+		windGust = appWindGust.mag;
 	}
 
 	if (windGust < DAMAGE_DEC_THRESH)
