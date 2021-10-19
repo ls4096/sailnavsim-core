@@ -50,8 +50,8 @@ static const uint8_t CMD_ACTION_COURSE_VALS[COMMAND_MAX_ARG_COUNT] = { CMD_VAL_I
 static const uint8_t CMD_ACTION_ADD_BOAT_VALS[COMMAND_MAX_ARG_COUNT] = { CMD_VAL_DOUBLE, CMD_VAL_DOUBLE, CMD_VAL_INT, CMD_VAL_INT };
 
 
-#define BOAT_TYPE_MAX_VALUE (10)
-#define BOAT_FLAGS_MAX_VALUE (0x001f)
+#define BOAT_TYPE_MAX_VALUE (11)
+#define BOAT_FLAGS_MAX_VALUE (0x0007)
 
 
 static void* commandThreadMain(void* arg);
