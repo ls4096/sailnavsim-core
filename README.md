@@ -12,6 +12,7 @@ A global sailing navigation simulator, using real-world geographic information a
 - Ubuntu 18.04, x86-64
 - Ubuntu 20.04, x86-64
 - Debian 9 (Stretch), x86-64
+- Debian 10 (Buster), x86-64
 - Alpine Linux 3.13, x86-64
 
 ## How to build
@@ -35,12 +36,15 @@ A global sailing navigation simulator, using real-world geographic information a
 `mkfifo cmds`
 
 Basic run:
+
 `LD_LIBRARY_PATH=./libproteus ./sailnavsim`
 
-With optional TCP server listening on $PORT (for weather data, live boat info, etc.):
+With optional TCP server listening on localhost $PORT (for weather data, live boat info, etc.):
+
 `LD_LIBRARY_PATH=./libproteus ./sailnavsim --netport $PORT`
 
 Performance test run:
+
 `LD_LIBRARY_PATH=./libproteus ./sailnavsim --perf`
 
 ### Add boat
