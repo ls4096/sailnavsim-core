@@ -34,7 +34,14 @@ A global sailing navigation simulator, using real-world geographic information a
 
 `mkfifo cmds`
 
+Basic run:
 `LD_LIBRARY_PATH=./libproteus ./sailnavsim`
+
+With optional TCP server listening on $PORT (for weather data, live boat info, etc.):
+`LD_LIBRARY_PATH=./libproteus ./sailnavsim --netport $PORT`
+
+Performance test run:
+`LD_LIBRARY_PATH=./libproteus ./sailnavsim --perf`
 
 ### Add boat
 
