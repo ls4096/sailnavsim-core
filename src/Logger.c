@@ -69,7 +69,7 @@ static pthread_cond_t _logsCond;
 static bool _init = false;
 
 
-static void* loggerThreadMain(void* arg);
+static void* loggerThreadMain();
 
 static void writeLogsCsv(const LogEntry* const logEntries, unsigned int lCount, const CelestialSightEntry* const csEntries, unsigned int csCount);
 static void writeLogsSql(const LogEntry* const logEntries, unsigned int lCount, const CelestialSightEntry* const csEntries, unsigned int csCount);
@@ -240,7 +240,7 @@ void Logger_writeLogs(LogEntry* logEntries, unsigned int lCount, CelestialSightE
 }
 
 
-static void* loggerThreadMain(void* arg)
+static void* loggerThreadMain()
 {
 	for (;;)
 	{
@@ -278,7 +278,7 @@ static void* loggerThreadMain(void* arg)
 			writeLogsSql(entries, lCount, cs, csCount);
 			writeLogsCsv(entries, lCount, cs, csCount);
 
-			for (int i = 0; i < lCount; i++)
+			for (unsigned int i = 0; i < lCount; i++)
 			{
 				if (entries[i].boatName != LOGGER_DEFAULT_LOG_BOAT_NAME)
 				{

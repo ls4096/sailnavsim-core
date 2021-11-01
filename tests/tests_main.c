@@ -30,14 +30,14 @@ static const test_func TEST_FUNCS[] = {
 	&test_BoatRegistry_runLoad
 };
 
-int main(int argc, char** argv)
+int main()
 {
 	int testres;
 	int sum = 0;
 
 	printf("Running tests for sailnavsim...\n");
 
-	for (int i = 0; i < (sizeof(TEST_NAMES) / sizeof(const char*)); i++)
+	for (size_t i = 0; i < (sizeof(TEST_NAMES) / sizeof(const char*)); i++)
 	{
 		printf("%s...\n", TEST_NAMES[i]);
 

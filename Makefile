@@ -20,14 +20,14 @@ TESTS_OBJS = \
 
 
 src/%.o: src/%.c
-	gcc -c -Wall -Werror -O2 -D_GNU_SOURCE -Ilibproteus/include/ -o $@ $<
+	gcc -c -Wall -Wextra -O2 -D_GNU_SOURCE -Ilibproteus/include/ -o $@ $<
 
 sailnavsim: $(OBJS) src/main.o
 	gcc -O2 -D_GNU_SOURCE -o sailnavsim $(OBJS) src/main.o -lm -lpthread -lsqlite3 -Llibproteus -lproteus
 
 
 tests/%.o: tests/%.c
-	gcc -c -Wall -Werror -O2 -D_GNU_SOURCE -Ilibproteus/include/ -Isrc/ -o $@ $<
+	gcc -c -Wall -Wextra -O2 -D_GNU_SOURCE -Ilibproteus/include/ -Isrc/ -o $@ $<
 
 sailnavsim_tests: $(TESTS_OBJS) $(OBJS) tests/tests_main.o
 	gcc -O2 -D_GNU_SOURCE -o sailnavsim_tests $(TESTS_OBJS) $(OBJS) tests/tests_main.o -lm -lpthread -lsqlite3 -Llibproteus -lproteus

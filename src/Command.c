@@ -54,7 +54,7 @@ static const uint8_t CMD_ACTION_ADD_BOAT_VALS[COMMAND_MAX_ARG_COUNT] = { CMD_VAL
 #define BOAT_FLAGS_MAX_VALUE (0x001f)
 
 
-static void* commandThreadMain(void* arg);
+static void* commandThreadMain();
 static int handleCmd(char* cmdStr);
 
 static int getAction(const char* s);
@@ -135,7 +135,7 @@ int Command_add(char* cmdStr)
 
 #define COMMAND_BUF_SIZE (1024)
 
-static void* commandThreadMain(void* arg)
+static void* commandThreadMain()
 {
 	char buf[COMMAND_BUF_SIZE];
 

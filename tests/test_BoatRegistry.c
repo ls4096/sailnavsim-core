@@ -193,7 +193,7 @@ int test_BoatRegistry_runLoad()
 	int removeNotExists = 0;
 
 	// Load up the BoatRegistry, adding and removing boats at random.
-	for (int i = 0; i < LOAD_ITERATIONS; i++)
+	for (unsigned int i = 0; i < LOAD_ITERATIONS; i++)
 	{
 		const int r = getRandInt(LOAD_BOAT_COUNT_MAX - 1);
 
@@ -257,7 +257,7 @@ int test_BoatRegistry_runLoad()
 
 		// Boat count must equal successful adds minus successful removes.
 		BoatRegistry_getAllBoats(&boatCount);
-		EQUALS(addOk - removeOk, boatCount);
+		EQUALS(addOk - removeOk, (int)boatCount);
 	}
 
 	printf("\t\t_initRandSeed:\t\t%d\n", _initRandSeed);
@@ -269,11 +269,11 @@ int test_BoatRegistry_runLoad()
 
 
 	// Remove remaining boats.
-	for (int i = 0; i < LOAD_BOAT_COUNT_MAX; i++)
+	for (unsigned int i = 0; i < LOAD_BOAT_COUNT_MAX; i++)
 	{
 		if (boatList[i])
 		{
-			sprintf(boatName, "Boat%d", i);
+			sprintf(boatName, "Boat%u", i);
 
 			b = BoatRegistry_remove(boatName);
 
@@ -297,12 +297,12 @@ static int verifyLoadBoatRegistry(const bool* boatList)
 
 	char boatName[32];
 	Boat* b;
-	int count = 0;
+	unsigned int count = 0;
 
 	// Build our local list of boats that exist.
-	for (int i = 0; i < LOAD_BOAT_COUNT_MAX; i++)
+	for (unsigned int i = 0; i < LOAD_BOAT_COUNT_MAX; i++)
 	{
-		sprintf(boatName, "Boat%d", i);
+		sprintf(boatName, "Boat%u", i);
 		if ((b = BoatRegistry_get(boatName)))
 		{
 			EQUALS_DBL(b->pos.lat, getBoatLatForR(i));
@@ -314,7 +314,7 @@ static int verifyLoadBoatRegistry(const bool* boatList)
 	}
 
 	// Ensure that our local list matches list from caller.
-	for (int i = 0; i < LOAD_BOAT_COUNT_MAX; i++)
+	for (unsigned int i = 0; i < LOAD_BOAT_COUNT_MAX; i++)
 	{
 		EQUALS(boatList[i], localBoatList[i]);
 	}
@@ -349,7 +349,7 @@ static int verifyLoadBoatRegistry(const bool* boatList)
 	}
 
 	// Ensure that the list of boats from entry iteration matches list from caller.
-	for (int i = 0; i < LOAD_BOAT_COUNT_MAX; i++)
+	for (unsigned int i = 0; i < LOAD_BOAT_COUNT_MAX; i++)
 	{
 		EQUALS(boatList[i], localBoatList[i]);
 	}

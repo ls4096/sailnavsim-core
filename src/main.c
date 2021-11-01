@@ -82,7 +82,7 @@
 #define PERF_TEST_MAX_BOAT_COUNT (204800)
 
 
-static const char* VERSION_STRING = "SailNavSim version 1.13.0 (" __DATE__ " " __TIME__ ")";
+static const char* VERSION_STRING = "SailNavSim version 1.13.1 (" __DATE__ " " __TIME__ ")";
 
 
 static int parseArgs(int argc, char** argv);
@@ -377,7 +377,7 @@ int main(int argc, char** argv)
 				if (csEntries)
 				{
 					CelestialSightEntry* nextEntry = csEntries;
-					for (int i = 0; i < boatCount; i++)
+					for (unsigned int i = 0; i < boatCount; i++)
 					{
 						if (sights[i].obj >= 0)
 						{
@@ -434,7 +434,7 @@ int main(int argc, char** argv)
 					}
 
 					// Double the number of boats for the next set of measurements.
-					for (int i = currentBoatCount; i < currentBoatCount * 2; i++)
+					for (unsigned int i = currentBoatCount; i < currentBoatCount * 2; i++)
 					{
 						perfAddAndStartRandomBoat();
 					}
