@@ -167,10 +167,10 @@ static BoatInitEntry* getNextSql()
 		{
 			const char* boatName = (const char*) sqlite3_column_text(_sqlStmtBoat, 0);
 			const char* race = (const char*) sqlite3_column_text(_sqlStmtBoat, 1);
-			double desiredCourse = sqlite3_column_double(_sqlStmtBoat, 2);
-			int started = sqlite3_column_double(_sqlStmtBoat, 3);
-			int boatType = sqlite3_column_double(_sqlStmtBoat, 4);
-			int boatFlags = sqlite3_column_double(_sqlStmtBoat, 5);
+			const double desiredCourse = sqlite3_column_double(_sqlStmtBoat, 2);
+			const int started = sqlite3_column_double(_sqlStmtBoat, 3);
+			const int boatType = sqlite3_column_double(_sqlStmtBoat, 4);
+			const int boatFlags = sqlite3_column_double(_sqlStmtBoat, 5);
 
 			src = sqlite3_reset(_sqlStmtBoatLog);
 			if (src != SQLITE_OK)
@@ -191,14 +191,14 @@ static BoatInitEntry* getNextSql()
 			{
 				int n = 0;
 
-				double lat = sqlite3_column_double(_sqlStmtBoatLog, n++);
-				double lon = sqlite3_column_double(_sqlStmtBoatLog, n++);
-				double course = sqlite3_column_double(_sqlStmtBoatLog, n++);
-				double speed = sqlite3_column_double(_sqlStmtBoatLog, n++);
-				int boatStatus = sqlite3_column_int(_sqlStmtBoatLog, n++);
-				int boatLocation = sqlite3_column_int(_sqlStmtBoatLog, n++);
-				double distanceTravelled = sqlite3_column_double(_sqlStmtBoatLog, n++);
-				double damage = sqlite3_column_double(_sqlStmtBoatLog, n++);
+				const double lat = sqlite3_column_double(_sqlStmtBoatLog, n++);
+				const double lon = sqlite3_column_double(_sqlStmtBoatLog, n++);
+				const double course = sqlite3_column_double(_sqlStmtBoatLog, n++);
+				const double speed = sqlite3_column_double(_sqlStmtBoatLog, n++);
+				const int boatStatus = sqlite3_column_int(_sqlStmtBoatLog, n++);
+				const int boatLocation = sqlite3_column_int(_sqlStmtBoatLog, n++);
+				const double distanceTravelled = sqlite3_column_double(_sqlStmtBoatLog, n++);
+				const double damage = sqlite3_column_double(_sqlStmtBoatLog, n++);
 
 				BoatInitEntry* entry = malloc(sizeof(BoatInitEntry));
 				if (!entry)
@@ -245,11 +245,26 @@ static BoatInitEntry* getNextSql()
 					continue;
 				}
 
+				entry->group = strdup(race);
+				if (!entry->group)
+				{
+					ERRLOG("Failed to alloc entry->group!");
+
+					free(entry->name);
+					entry->name = 0;
+					free(entry);
+					entry = 0;
+					free(boat);
+					boat = 0;
+
+					continue;
+				}
+
 				return entry;
 			}
 			else if (src == SQLITE_DONE)
 			{
-				// Boat that exists in the Boat table but has nothing logged, so assume it was newly added.
+				// Boat that exists in the Boat table but has nothing logged yet, so assume it was newly added.
 
 				BoatInitEntry* entry = 0;
 
@@ -277,8 +292,8 @@ static BoatInitEntry* getNextSql()
 					goto cleanup;
 				}
 
-				double lat = sqlite3_column_double(stmt, 0);
-				double lon = sqlite3_column_double(stmt, 1);
+				const double lat = sqlite3_column_double(stmt, 0);
+				const double lon = sqlite3_column_double(stmt, 1);
 
 				entry = malloc(sizeof(BoatInitEntry));
 				if (!entry)
@@ -303,6 +318,21 @@ static BoatInitEntry* getNextSql()
 				{
 					ERRLOG("Failed to alloc entry->name!");
 
+					free(entry);
+					entry = 0;
+					free(boat);
+					boat = 0;
+
+					goto cleanup;
+				}
+
+				entry->group = strdup(race);
+				if (!entry->group)
+				{
+					ERRLOG("Failed to alloc entry->group!");
+
+					free(entry->name);
+					entry->name = 0;
 					free(entry);
 					entry = 0;
 					free(boat);
@@ -392,6 +422,7 @@ static BoatInitEntry* getNextFile()
 
 		entry->boat = boat;
 		entry->name = name;
+		entry->group = 0; // NOTE: Boat add with group from CSV not currently supported.
 
 		return entry;
 	}

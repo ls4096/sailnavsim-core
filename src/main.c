@@ -82,7 +82,7 @@
 #define PERF_TEST_MAX_BOAT_COUNT (204800)
 
 
-static const char* VERSION_STRING = "SailNavSim version 1.13.1 (" __DATE__ " " __TIME__ ")";
+static const char* VERSION_STRING = "SailNavSim version 1.14.0 (" __DATE__ " " __TIME__ ")";
 
 
 static int parseArgs(int argc, char** argv);
@@ -136,19 +136,29 @@ int main(int argc, char** argv)
 	}
 
 
+	if (BoatRegistry_init() != 0)
+	{
+		ERRLOG("Failed to init boat registry!");
+		return -1;
+	}
+
 	int initRc;
 	if ((initRc = BoatInitParser_start(BOAT_INIT_DATA_FILENAME, SQLITE_DB_FILENAME)) == 0)
 	{
 		BoatInitEntry* be;
 		while ((be = BoatInitParser_getNext()) != 0)
 		{
-			if (BoatRegistry_OK != BoatRegistry_add(be->boat, be->name))
+			if (BoatRegistry_OK != BoatRegistry_add(be->boat, be->name, be->group))
 			{
 				ERRLOG("Failed to add boat to registry!");
 				return -1;
 			}
 
 			free(be->name);
+			if (be->group)
+			{
+				free(be->group);
+			}
 			free(be);
 		}
 	}
@@ -494,10 +504,7 @@ int main(int argc, char** argv)
 		while ((cmd = Command_next()))
 		{
 			handleCommand(cmd);
-
-			free(cmd->name);
-			free(cmd);
-
+			Command_free(cmd);
 			cmdCount++;
 		}
 
@@ -629,6 +636,9 @@ int main(int argc, char** argv)
 	} // End of performance testing control block outside main loop.
 
 
+	BoatRegistry_destroy();
+
+
 	return 0;
 }
 
@@ -698,6 +708,7 @@ static void handleCommand(Command* cmd)
 	switch (cmd->action)
 	{
 		case COMMAND_ACTION_ADD_BOAT:
+		case COMMAND_ACTION_ADD_BOAT_WITH_GROUP:
 		case COMMAND_ACTION_REMOVE_BOAT:
 			handleBoatRegistryCommand(cmd);
 			return;
@@ -735,17 +746,23 @@ static void handleBoatRegistryCommand(Command* cmd)
 	switch (cmd->action)
 	{
 		case COMMAND_ACTION_ADD_BOAT:
+		case COMMAND_ACTION_ADD_BOAT_WITH_GROUP:
 		{
+			const char* groupName = (cmd->action == COMMAND_ACTION_ADD_BOAT_WITH_GROUP ? cmd->values[4].s : 0);
+
 			Boat* boat = Boat_new(cmd->values[0].d, cmd->values[1].d, cmd->values[2].i, cmd->values[3].i);
 			if (!boat)
 			{
 				ERRLOG("handleBoatRegistryCommand: Failed to create new Boat!");
-				break;
 			}
-
-			if (BoatRegistry_OK != BoatRegistry_add(boat, cmd->name))
+			else
 			{
-				free(boat);
+				int rc;
+				if (BoatRegistry_OK != (rc = BoatRegistry_add(boat, cmd->name, groupName)))
+				{
+					ERRLOG2("handleBoatRegistryCommand: Failed to add Boat to BoatRegistry! rc=%d, name=%s", rc, cmd->name);
+					free(boat);
+				}
 			}
 
 			break;
@@ -873,13 +890,24 @@ static void perfAddAndStartRandomBoat()
 
 
 	// Add boat.
-	cmd.action = COMMAND_ACTION_ADD_BOAT;
+	const bool withGroup = PerfUtils_getRandomBool();
+	cmd.action = (withGroup ? COMMAND_ACTION_ADD_BOAT_WITH_GROUP : COMMAND_ACTION_ADD_BOAT);
 	cmd.values[0].d = PerfUtils_getRandomLat();
 	cmd.values[1].d = PerfUtils_getRandomLon();
 	cmd.values[2].i = PerfUtils_getRandomBoatType();
 	cmd.values[3].i = PerfUtils_getRandomBoatFlags();
+	if (withGroup)
+	{
+		cmd.values[4].s = strdup(PerfUtils_getRandomBoatGroupName());
+	}
 
 	handleCommand(&cmd);
+
+	if (withGroup)
+	{
+		free(cmd.values[4].s);
+		cmd.values[4].s = 0;
+	}
 
 
 	// Set course.

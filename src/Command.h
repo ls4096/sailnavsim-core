@@ -26,10 +26,11 @@
 #define COMMAND_ACTION_COURSE_MAG (3)
 
 #define COMMAND_ACTION_ADD_BOAT (4)
-#define COMMAND_ACTION_REMOVE_BOAT (5)
+#define COMMAND_ACTION_ADD_BOAT_WITH_GROUP (5)
+#define COMMAND_ACTION_REMOVE_BOAT (6)
 
 
-#define COMMAND_MAX_ARG_COUNT (4)
+#define COMMAND_MAX_ARG_COUNT (5)
 
 
 typedef struct Command Command;
@@ -38,6 +39,7 @@ typedef union
 {
 	int i;
 	double d;
+	char* s;
 } CommandValue;
 
 struct Command
@@ -53,6 +55,7 @@ struct Command
 int Command_init(const char* cmdsInputPath);
 Command* Command_next();
 int Command_add(char* cmdStr);
+void Command_free(Command* cmd);
 
 
 #endif // _Command_h_

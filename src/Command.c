@@ -37,17 +37,20 @@ static const char* CMD_ACTION_STR_COURSE_TRUE = "course";
 static const char* CMD_ACTION_STR_COURSE_MAG = "course_m";
 
 static const char* CMD_ACTION_STR_ADD_BOAT = "add";
+static const char* CMD_ACTION_STR_ADD_BOAT_WITH_GROUP = "add_g";
 static const char* CMD_ACTION_STR_REMOVE_BOAT = "remove";
 
 
 #define CMD_VAL_NONE (0)
 #define CMD_VAL_INT (1)
 #define CMD_VAL_DOUBLE (2)
+#define CMD_VAL_STRING (3)
 
-static const uint8_t CMD_ACTION_VALS_NONE[COMMAND_MAX_ARG_COUNT] = { CMD_VAL_NONE, CMD_VAL_NONE, CMD_VAL_NONE, CMD_VAL_NONE };
+static const uint8_t CMD_ACTION_VALS_NONE[COMMAND_MAX_ARG_COUNT] = { CMD_VAL_NONE, CMD_VAL_NONE, CMD_VAL_NONE, CMD_VAL_NONE, CMD_VAL_NONE };
 
-static const uint8_t CMD_ACTION_COURSE_VALS[COMMAND_MAX_ARG_COUNT] = { CMD_VAL_INT, CMD_VAL_NONE, CMD_VAL_NONE, CMD_VAL_NONE };
-static const uint8_t CMD_ACTION_ADD_BOAT_VALS[COMMAND_MAX_ARG_COUNT] = { CMD_VAL_DOUBLE, CMD_VAL_DOUBLE, CMD_VAL_INT, CMD_VAL_INT };
+static const uint8_t CMD_ACTION_COURSE_VALS[COMMAND_MAX_ARG_COUNT] = { CMD_VAL_INT, CMD_VAL_NONE, CMD_VAL_NONE, CMD_VAL_NONE, CMD_VAL_NONE };
+static const uint8_t CMD_ACTION_ADD_BOAT_VALS[COMMAND_MAX_ARG_COUNT] = { CMD_VAL_DOUBLE, CMD_VAL_DOUBLE, CMD_VAL_INT, CMD_VAL_INT, CMD_VAL_NONE };
+static const uint8_t CMD_ACTION_ADD_BOAT_WITH_GROUP_VALS[COMMAND_MAX_ARG_COUNT] = { CMD_VAL_DOUBLE, CMD_VAL_DOUBLE, CMD_VAL_INT, CMD_VAL_INT, CMD_VAL_STRING };
 
 
 #define BOAT_TYPE_MAX_VALUE (11)
@@ -132,6 +135,23 @@ int Command_add(char* cmdStr)
 	return handleCmd(cmdStr);
 }
 
+void Command_free(Command* cmd)
+{
+	if (cmd->name)
+	{
+		free(cmd->name);
+	}
+
+	const uint8_t* valueTypes = getActionExpectedValueTypes(cmd->action);
+	for (int i = 0; i < COMMAND_MAX_ARG_COUNT; i++)
+	{
+		if (valueTypes[i] == CMD_VAL_STRING && cmd->values[i].s)
+		{
+			free(cmd->values[i].s);
+		}
+	}
+}
+
 
 #define COMMAND_BUF_SIZE (1024)
 
@@ -166,6 +186,13 @@ static int handleCmd(char* cmdStr)
 	char* s;
 	char* t;
 
+	// Remove trailing newline, if present.
+	const size_t slen = strlen(cmdStr);
+	if (slen > 0 && cmdStr[slen - 1] == '\n')
+	{
+		cmdStr[slen - 1] = 0;
+	}
+
 	Command* cmd = malloc(sizeof(Command));
 	if (!cmd)
 	{
@@ -193,23 +220,16 @@ static int handleCmd(char* cmdStr)
 		goto fail;
 	}
 
-	// Remove trailing newline, if present.
-	const size_t slen = strlen(s);
-	if (slen > 0 && s[slen - 1] == '\n')
-	{
-		s[slen - 1] = 0;
-	}
-
 	if ((cmd->action = getAction(s)) == COMMAND_ACTION_INVALID)
 	{
 		goto fail;
 	}
 
-	const uint8_t* vals = getActionExpectedValueTypes(cmd->action);
+	const uint8_t* vt = getActionExpectedValueTypes(cmd->action);
 
 	for (int i = 0; i < COMMAND_MAX_ARG_COUNT; i++)
 	{
-		switch (vals[i])
+		switch (vt[i])
 		{
 			case CMD_VAL_NONE:
 				break;
@@ -221,13 +241,25 @@ static int handleCmd(char* cmdStr)
 					goto fail;
 				}
 
-				if (vals[i] == CMD_VAL_INT)
+				if (vt[i] == CMD_VAL_INT)
 				{
 					cmd->values[i].i = strtol(s, 0, 10);
 				}
 				else
 				{
 					cmd->values[i].d = strtod(s, 0);
+				}
+
+				break;
+
+			case CMD_VAL_STRING:
+				if ((s = strtok_r(0, ",", &t)) == 0)
+				{
+					goto fail;
+				}
+				else
+				{
+					cmd->values[i].s = strdup(s);
 				}
 
 				break;
@@ -245,11 +277,10 @@ static int handleCmd(char* cmdStr)
 	return queueCmd(cmd);
 
 fail:
-	if (cmd && cmd->name)
+	if (cmd)
 	{
-		free(cmd->name);
+		Command_free(cmd);
 	}
-	free(cmd);
 
 	return -1;
 }
@@ -276,6 +307,10 @@ static int getAction(const char* s)
 	{
 		return COMMAND_ACTION_ADD_BOAT;
 	}
+	else if (strcmp(CMD_ACTION_STR_ADD_BOAT_WITH_GROUP, s) == 0)
+	{
+		return COMMAND_ACTION_ADD_BOAT_WITH_GROUP;
+	}
 	else if (strcmp(CMD_ACTION_STR_REMOVE_BOAT, s) == 0)
 	{
 		return COMMAND_ACTION_REMOVE_BOAT;
@@ -293,6 +328,8 @@ static const uint8_t* getActionExpectedValueTypes(int action)
 			return CMD_ACTION_COURSE_VALS;
 		case COMMAND_ACTION_ADD_BOAT:
 			return CMD_ACTION_ADD_BOAT_VALS;
+		case COMMAND_ACTION_ADD_BOAT_WITH_GROUP:
+			return CMD_ACTION_ADD_BOAT_WITH_GROUP_VALS;
 	}
 
 	return CMD_ACTION_VALS_NONE;
@@ -308,7 +345,16 @@ static bool areValuesValidForAction(int action, CommandValue values[COMMAND_MAX_
 			return (values[0].i >= 0 && values[0].i <= 360);
 		}
 		case COMMAND_ACTION_ADD_BOAT:
+		case COMMAND_ACTION_ADD_BOAT_WITH_GROUP:
 		{
+			if (action == COMMAND_ACTION_ADD_BOAT_WITH_GROUP)
+			{
+				if (!values[4].s || strlen(values[4].s) == 0)
+				{
+					return false;
+				}
+			}
+
 			return (values[0].d > -90.0 && values[0].d < 90.0 &&
 					values[1].d >= -180.0 && values[1].d <= 180.0 &&
 					values[2].i >= 0 && values[2].i <= BOAT_TYPE_MAX_VALUE &&

@@ -23,6 +23,7 @@ typedef struct
 {
 	Boat* boat;
 	char* name;
+	char* group;
 } BoatInitEntry;
 
 

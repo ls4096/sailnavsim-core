@@ -18,6 +18,8 @@
 #define _tests_h_
 
 int test_BoatRegistry_runBasic();
+int test_BoatRegistry_runBasicWithGroups();
 int test_BoatRegistry_runLoad();
+int test_BoatRegistry_runLoadWithBigGroups();
 
 #endif // _tests_h_

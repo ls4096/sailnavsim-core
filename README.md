@@ -7,31 +7,24 @@ A global sailing navigation simulator, using real-world geographic information a
 - POSIX threads (pthread) library, with headers
 - SQLite3 library, with headers
 
+### Build tools
+
+- make
+- gcc
+- Rust toolchain (rustc, cargo, etc.)
+
 ### Tested build/run environments
 
-- Ubuntu 18.04, x86-64
 - Ubuntu 20.04, x86-64
-- Debian 9 (Stretch), x86-64
 - Debian 10 (Buster), x86-64
-- Alpine Linux 3.13, x86-64
 
 ## How to build
-
-### libProteus
-
-`git submodule update --init`
-
-`cd libproteus`
-
-`make libproteus`
-
-`cd ..`
-
-### SailNavSim
 
 `make sailnavsim`
 
 ## How to run
+
+Create the named pipe to be able to send the simulator commands:
 
 `mkfifo cmds`
 
@@ -39,7 +32,7 @@ Basic run:
 
 `LD_LIBRARY_PATH=./libproteus ./sailnavsim`
 
-With optional TCP server listening on localhost $PORT (for weather data, live boat info, etc.):
+With optional TCP server listening on localhost:$PORT (for weather data, live boat info, etc.):
 
 `LD_LIBRARY_PATH=./libproteus ./sailnavsim --netport $PORT`
 
@@ -47,17 +40,17 @@ Performance test run:
 
 `LD_LIBRARY_PATH=./libproteus ./sailnavsim --perf`
 
-### Add boat
+### Add a boat
 
 `echo "TestBoat,add,44.0,-63.0,0,0" > cmds`
 
-### Set course and start boat
+### Set a course and start the boat
 
 `echo "TestBoat,course,90" > cmds`
 
 `echo "TestBoat,start" > cmds`
 
-### Stop and remove boat
+### Stop and remove the boat
 
 `echo "TestBoat,stop" > cmds`
 

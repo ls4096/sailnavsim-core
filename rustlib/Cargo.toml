@@ -1,0 +1,16 @@
+[package]
+name = "sailnavsim-rustlib"
+version = "0.1.0"
+edition = "2018"
+
+[lib]
+name = "sailnavsim_rustlib"
+crate-type = ["staticlib"]
+
+[profile.release]
+panic = "abort"
+
+[profile.dev]
+panic = "abort"
+
+[dependencies]

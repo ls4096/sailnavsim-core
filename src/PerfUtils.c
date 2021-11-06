@@ -20,8 +20,8 @@
 
 
 static int getRandInt(int max);
-
-static unsigned int _randSeed = 314159265;
+static int getRandInt2(int max);
+static int getRandInt3(int max);
 
 
 #define RANDOM_NAME_LEN (32)
@@ -33,7 +33,18 @@ char* PerfUtils_getRandomName()
 
 	for (int i = 0; i < RANDOM_NAME_LEN; i++)
 	{
-		name[i] = RANDOM_NAME_CHARS[getRandInt(15)];
+		if (i % 6 == 0)
+		{
+			name[i] = RANDOM_NAME_CHARS[getRandInt3(15)];
+		}
+		else if (i % 4 == 0)
+		{
+			name[i] = RANDOM_NAME_CHARS[getRandInt2(15)];
+		}
+		else
+		{
+			name[i] = RANDOM_NAME_CHARS[getRandInt(15)];
+		}
 	}
 
 	name[RANDOM_NAME_LEN] = 0;
@@ -71,8 +82,42 @@ bool PerfUtils_getRandomBool()
 	return (getRandInt(1) == 1);
 }
 
+const char* PerfUtils_getRandomBoatGroupName()
+{
+	static const char* PERF_BOAT_GROUPS[] = {
+		"G0",
+		"G1",
+		"G2",
+		"G3",
+		"G4",
+		"G5",
+		"G6",
+		"G7",
+		"G8",
+		"G9",
+		"G10",
+		"G11",
+	};
+
+	return PERF_BOAT_GROUPS[getRandInt(11)];
+}
+
+
 
 static int getRandInt(int max)
 {
+	static unsigned int _randSeed = 314159265;
 	return (rand_r(&_randSeed) % (max + 1));
+}
+
+static int getRandInt2(int max)
+{
+	static unsigned int _randSeed2 = 271828183;
+	return (rand_r(&_randSeed2) % (max + 1));
+}
+
+static int getRandInt3(int max)
+{
+	static unsigned int _randSeed3 = 141421356;
+	return (rand_r(&_randSeed3) % (max + 1));
 }

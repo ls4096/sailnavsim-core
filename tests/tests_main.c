@@ -22,12 +22,16 @@ typedef int (*test_func)(void);
 
 static const char* TEST_NAMES[] = {
 	"BoatRegistry_basic",
-	"BoatRegistry_load"
+	"BoatRegistry_basicWithGroups",
+	"BoatRegistry_load",
+	"BoatRegistry_loadWithBigGroups"
 };
 
 static const test_func TEST_FUNCS[] = {
 	&test_BoatRegistry_runBasic,
-	&test_BoatRegistry_runLoad
+	&test_BoatRegistry_runBasicWithGroups,
+	&test_BoatRegistry_runLoad,
+	&test_BoatRegistry_runLoadWithBigGroups
 };
 
 int main()

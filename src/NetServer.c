@@ -50,6 +50,7 @@
 #define REQ_TYPE_GET_BOAT_DATA				(6)
 #define REQ_TYPE_GET_BOAT_DATA_NO_CELESTIAL		(7)
 #define REQ_TYPE_BOAT_CMD				(8)
+#define REQ_TYPE_BOAT_GROUP_MEMBERSHIP			(9)
 
 static const char* REQ_STR_GET_WIND =			"wind";
 static const char* REQ_STR_GET_WIND_GUST =		"wind_gust";
@@ -59,6 +60,7 @@ static const char* REQ_STR_GET_WAVE_HEIGHT =		"wave_height";
 static const char* REQ_STR_GET_BOAT_DATA =		"bd";
 static const char* REQ_STR_GET_BOAT_DATA_NO_CELESTIAL =	"bd_nc";
 static const char* REQ_STR_BOAT_CMD =			"boatcmd";
+static const char* REQ_STR_BOAT_GROUP_MEMBERSHIP =	"boatgroupmembers";
 
 
 #define REQ_MAX_ARG_COUNT (2)
@@ -72,6 +74,8 @@ static const uint8_t REQ_VALS_NONE[REQ_MAX_ARG_COUNT] = { REQ_VAL_NONE, REQ_VAL_
 
 static const uint8_t REQ_VALS_LAT_LON[REQ_MAX_ARG_COUNT] = { REQ_VAL_DOUBLE, REQ_VAL_DOUBLE };
 static const uint8_t REQ_VALS_BOAT_DATA[REQ_MAX_ARG_COUNT] = { REQ_VAL_STRING, REQ_VAL_NONE };
+
+static const uint8_t REQ_VALS_BOAT_GROUP_MEMBERSHIP[REQ_MAX_ARG_COUNT] = { REQ_VAL_STRING, REQ_VAL_NONE };
 
 typedef union
 {
@@ -102,6 +106,7 @@ static void populateOceanResponse(char* buf, size_t bufSize, proteus_GeoPos* pos
 static void populateWaveResponse(char* buf, size_t bufSize, proteus_GeoPos* pos);
 static void populateBoatDataResponse(char* buf, size_t bufSize, const char* key, bool noCelestial);
 static void populateBoatCmdResponse(char* buf, size_t bufSize, char** tok);
+static void populateBoatGroupMembershipResponse(char* buf, size_t bufSize, const char* key);
 
 
 static pthread_t _netServerThread;
@@ -451,11 +456,12 @@ done:
 	return fd;
 }
 
-#define MSG_BUF_SIZE (1024)
+#define RECV_MSG_BUF_SIZE (1024)
+#define SEND_MSG_BUF_SIZE (64 * 1024)
 
 static void processConnection(unsigned int workerThreadId, int fd)
 {
-	char buf[MSG_BUF_SIZE];
+	char buf[RECV_MSG_BUF_SIZE];
 	buf[0] = 0;
 
 	// Number of bytes in read buffer ready for message parsing/processing
@@ -469,7 +475,7 @@ static void processConnection(unsigned int workerThreadId, int fd)
 	{
 		int rb = 0;
 
-		if (readyBytes == MSG_BUF_SIZE)
+		if (readyBytes == RECV_MSG_BUF_SIZE)
 		{
 			// We've encountered a request message that doesn't fit inside the buffer.
 			ERRLOG1("worker%u: Excessive message length!", workerThreadId);
@@ -493,7 +499,7 @@ static void processConnection(unsigned int workerThreadId, int fd)
 			if (select(fd + 1, &rfds, 0, 0, &tv) != 0 || readyBytes == 0)
 			{
 				// Read from the fd.
-				rb = read(fd, buf + readyBytes, MSG_BUF_SIZE - readyBytes);
+				rb = read(fd, buf + readyBytes, RECV_MSG_BUF_SIZE - readyBytes);
 				incCounter(COUNTER_READ);
 
 				if (rb < 0)
@@ -557,7 +563,7 @@ static void processConnection(unsigned int workerThreadId, int fd)
 
 		// Move start of next message data to start of buffer.
 		// NOTE: memmove() allows source and destination buffers to overlap.
-		memmove(buf, buf + i, MSG_BUF_SIZE - i);
+		memmove(buf, buf + i, RECV_MSG_BUF_SIZE - i);
 		readyBytes -= i;
 
 		if (eos && readyBytes == 0)
@@ -629,32 +635,35 @@ static int handleMessage(int fd, char* reqStr)
 	}
 
 
-	char buf[MSG_BUF_SIZE];
+	char buf[SEND_MSG_BUF_SIZE];
 	proteus_GeoPos pos = { values[0].d, values[1].d };
 
 	switch (reqType)
 	{
 		case REQ_TYPE_GET_WIND:
-			populateWindResponse(buf, MSG_BUF_SIZE, &pos, false);
+			populateWindResponse(buf, SEND_MSG_BUF_SIZE, &pos, false);
 			break;
 		case REQ_TYPE_GET_WIND_GUST:
-			populateWindResponse(buf, MSG_BUF_SIZE, &pos, true);
+			populateWindResponse(buf, SEND_MSG_BUF_SIZE, &pos, true);
 			break;
 		case REQ_TYPE_GET_OCEAN_CURRENT:
-			populateOceanResponse(buf, MSG_BUF_SIZE, &pos, false);
+			populateOceanResponse(buf, SEND_MSG_BUF_SIZE, &pos, false);
 			break;
 		case REQ_TYPE_GET_SEA_ICE:
-			populateOceanResponse(buf, MSG_BUF_SIZE, &pos, true);
+			populateOceanResponse(buf, SEND_MSG_BUF_SIZE, &pos, true);
 			break;
 		case REQ_TYPE_GET_WAVE_HEIGHT:
-			populateWaveResponse(buf, MSG_BUF_SIZE, &pos);
+			populateWaveResponse(buf, SEND_MSG_BUF_SIZE, &pos);
 			break;
 		case REQ_TYPE_GET_BOAT_DATA:
 		case REQ_TYPE_GET_BOAT_DATA_NO_CELESTIAL:
-			populateBoatDataResponse(buf, MSG_BUF_SIZE, values[0].s, (reqType == REQ_TYPE_GET_BOAT_DATA_NO_CELESTIAL));
+			populateBoatDataResponse(buf, SEND_MSG_BUF_SIZE, values[0].s, (reqType == REQ_TYPE_GET_BOAT_DATA_NO_CELESTIAL));
 			break;
 		case REQ_TYPE_BOAT_CMD:
-			populateBoatCmdResponse(buf, MSG_BUF_SIZE, &t);
+			populateBoatCmdResponse(buf, SEND_MSG_BUF_SIZE, &t);
+			break;
+		case REQ_TYPE_BOAT_GROUP_MEMBERSHIP:
+			populateBoatGroupMembershipResponse(buf, SEND_MSG_BUF_SIZE, values[0].s);
 			break;
 		default:
 			goto fail;
@@ -734,6 +743,10 @@ static int getReqType(const char* s)
 	{
 		return REQ_TYPE_BOAT_CMD;
 	}
+	else if (strcmp(REQ_STR_BOAT_GROUP_MEMBERSHIP, s) == 0)
+	{
+		return REQ_TYPE_BOAT_GROUP_MEMBERSHIP;
+	}
 
 	return REQ_TYPE_INVALID;
 }
@@ -751,6 +764,8 @@ static const uint8_t* getReqExpectedValueTypes(int reqType)
 		case REQ_TYPE_GET_BOAT_DATA:
 		case REQ_TYPE_GET_BOAT_DATA_NO_CELESTIAL:
 			return REQ_VALS_BOAT_DATA;
+		case REQ_TYPE_BOAT_GROUP_MEMBERSHIP:
+			return REQ_VALS_BOAT_GROUP_MEMBERSHIP;
 	}
 
 	return REQ_VALS_NONE;
@@ -893,4 +908,42 @@ static void populateBoatCmdResponse(char* buf, size_t bufSize, char** tok)
 
 fail:
 	snprintf(buf, bufSize, "%s,%s\n", REQ_STR_BOAT_CMD, (rc == 0) ? "ok" : "fail");
+}
+
+static void populateBoatGroupMembershipResponse(char* buf, size_t bufSize, const char* key)
+{
+	if (BoatRegistry_OK != BoatRegistry_rdlock())
+	{
+		ERRLOG("Failed to read-lock BoatRegistry lock for boat group membership response!");
+		snprintf(buf, bufSize, "%s,%s,failed\n", REQ_STR_BOAT_GROUP_MEMBERSHIP, key);
+		return;
+	}
+
+	const BoatEntry* entry = BoatRegistry_getBoatEntry(key);
+	if (!entry)
+	{
+		snprintf(buf, bufSize, "%s,%s,%s\n", REQ_STR_BOAT_GROUP_MEMBERSHIP, key, "noboat");
+	}
+	else if (!entry->group)
+	{
+		snprintf(buf, bufSize, "%s,%s,%s\n", REQ_STR_BOAT_GROUP_MEMBERSHIP, key, "nogroup");
+	}
+	else
+	{
+		const char* resp = BoatRegistry_getBoatsInGroupResponse(entry->group);
+		if (!resp)
+		{
+			snprintf(buf, bufSize, "%s,%s,%s\n", REQ_STR_BOAT_GROUP_MEMBERSHIP, key, "fail");
+		}
+		else
+		{
+			snprintf(buf, bufSize, "%s,%s,%s\n%s\n", REQ_STR_BOAT_GROUP_MEMBERSHIP, key, "ok", resp);
+			BoatRegistry_freeBoatsInGroupResponse(resp);
+		}
+	}
+
+	if (BoatRegistry_OK != BoatRegistry_unlock())
+	{
+		ERRLOG("Failed to unlock BoatRegistry lock for boat group membership response!");
+	}
 }

@@ -18,20 +18,49 @@ OBJS = \
 TESTS_OBJS = \
 	tests/test_BoatRegistry.o
 
+LIBPROTEUS_SO = libproteus/libproteus.so
+
+RUSTLIB_A = rustlib/target/release/libsailnavsim_rustlib.a
+
+SRC_INCLUDES = \
+	-Ilibproteus/include \
+	-Irustlib/include
+
+SOLIB_DEPS = \
+	-lm \
+	-ldl \
+	-lpthread \
+	-lsqlite3 \
+	-Llibproteus \
+	-lproteus
+
+
+$(LIBPROTEUS_SO):
+	make -C libproteus libproteus
+
+$(RUSTLIB_A):
+	cd rustlib; \
+	cargo build --release; \
+	cd ..;
+
 
 src/%.o: src/%.c
-	gcc -c -Wall -Wextra -O2 -D_GNU_SOURCE -Ilibproteus/include/ -o $@ $<
+	gcc -c -Wall -Wextra -O2 -D_GNU_SOURCE $(SRC_INCLUDES) -o $@ $<
 
-sailnavsim: $(OBJS) src/main.o
-	gcc -O2 -D_GNU_SOURCE -o sailnavsim $(OBJS) src/main.o -lm -lpthread -lsqlite3 -Llibproteus -lproteus
+sailnavsim: $(OBJS) src/main.o $(LIBPROTEUS_SO) $(RUSTLIB_A)
+	gcc -O2 -D_GNU_SOURCE -o sailnavsim src/main.o $(OBJS) $(RUSTLIB_A) $(SOLIB_DEPS)
 
 
 tests/%.o: tests/%.c
-	gcc -c -Wall -Wextra -O2 -D_GNU_SOURCE -Ilibproteus/include/ -Isrc/ -o $@ $<
+	gcc -c -Wall -Wextra -O2 -D_GNU_SOURCE -Isrc $(SRC_INCLUDES) -o $@ $<
 
-sailnavsim_tests: $(TESTS_OBJS) $(OBJS) tests/tests_main.o
-	gcc -O2 -D_GNU_SOURCE -o sailnavsim_tests $(TESTS_OBJS) $(OBJS) tests/tests_main.o -lm -lpthread -lsqlite3 -Llibproteus -lproteus
+sailnavsim_tests: $(TESTS_OBJS) $(OBJS) tests/tests_main.o $(LIBPROTEUS_SO) $(RUSTLIB_A)
+	gcc -O2 -D_GNU_SOURCE -o sailnavsim_tests tests/tests_main.o $(TESTS_OBJS) $(OBJS) $(RUSTLIB_A) $(SOLIB_DEPS)
 
 
 clean:
-	rm -rf src/*.o tests/*.o sailnavsim sailnavsim_tests
+	rm -rf src/*.o tests/*.o sailnavsim sailnavsim_tests; \
+	make -C libproteus clean; \
+	cd rustlib; \
+	cargo clean; \
+	cd ..;

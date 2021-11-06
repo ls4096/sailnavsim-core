@@ -27,6 +27,7 @@ int PerfUtils_getRandomBoatType();
 int PerfUtils_getRandomBoatFlags();
 int PerfUtils_getRandomCourse();
 bool PerfUtils_getRandomBool();
+const char* PerfUtils_getRandomBoatGroupName();
 
 
 #endif // _PerfUtils_h_

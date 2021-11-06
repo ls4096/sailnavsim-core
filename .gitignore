@@ -1,3 +1,4 @@
 sailnavsim
 sailnavsim_tests
 *.o
+rustlib/target
