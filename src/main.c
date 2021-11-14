@@ -82,7 +82,7 @@
 #define PERF_TEST_MAX_BOAT_COUNT (204800)
 
 
-static const char* VERSION_STRING = "SailNavSim version 1.14.0 (" __DATE__ " " __TIME__ ")";
+static const char* VERSION_STRING = "SailNavSim version 1.14.1 (" __DATE__ " " __TIME__ ")";
 
 
 static int parseArgs(int argc, char** argv);
@@ -148,7 +148,7 @@ int main(int argc, char** argv)
 		BoatInitEntry* be;
 		while ((be = BoatInitParser_getNext()) != 0)
 		{
-			if (BoatRegistry_OK != BoatRegistry_add(be->boat, be->name, be->group))
+			if (BoatRegistry_OK != BoatRegistry_add(be->boat, be->name, be->group, be->boatAltName))
 			{
 				ERRLOG("Failed to add boat to registry!");
 				return -1;
@@ -158,6 +158,10 @@ int main(int argc, char** argv)
 			if (be->group)
 			{
 				free(be->group);
+			}
+			if (be->boatAltName)
+			{
+				free(be->boatAltName);
 			}
 			free(be);
 		}
@@ -749,6 +753,7 @@ static void handleBoatRegistryCommand(Command* cmd)
 		case COMMAND_ACTION_ADD_BOAT_WITH_GROUP:
 		{
 			const char* groupName = (cmd->action == COMMAND_ACTION_ADD_BOAT_WITH_GROUP ? cmd->values[4].s : 0);
+			const char* boatAltName = (cmd->action == COMMAND_ACTION_ADD_BOAT_WITH_GROUP ? cmd->values[5].s : 0);
 
 			Boat* boat = Boat_new(cmd->values[0].d, cmd->values[1].d, cmd->values[2].i, cmd->values[3].i);
 			if (!boat)
@@ -758,7 +763,7 @@ static void handleBoatRegistryCommand(Command* cmd)
 			else
 			{
 				int rc;
-				if (BoatRegistry_OK != (rc = BoatRegistry_add(boat, cmd->name, groupName)))
+				if (BoatRegistry_OK != (rc = BoatRegistry_add(boat, cmd->name, groupName, boatAltName)))
 				{
 					ERRLOG2("handleBoatRegistryCommand: Failed to add Boat to BoatRegistry! rc=%d, name=%s", rc, cmd->name);
 					free(boat);
@@ -898,7 +903,8 @@ static void perfAddAndStartRandomBoat()
 	cmd.values[3].i = PerfUtils_getRandomBoatFlags();
 	if (withGroup)
 	{
-		cmd.values[4].s = strdup(PerfUtils_getRandomBoatGroupName());
+		cmd.values[4].s = PerfUtils_getRandomBoatGroupName();
+		cmd.values[5].s = PerfUtils_getRandomName(); // Boat alt name
 	}
 
 	handleCommand(&cmd);
@@ -907,6 +913,9 @@ static void perfAddAndStartRandomBoat()
 	{
 		free(cmd.values[4].s);
 		cmd.values[4].s = 0;
+
+		free(cmd.values[5].s);
+		cmd.values[5].s = 0;
 	}
 
 

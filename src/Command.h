@@ -30,7 +30,7 @@
 #define COMMAND_ACTION_REMOVE_BOAT (6)
 
 
-#define COMMAND_MAX_ARG_COUNT (5)
+#define COMMAND_MAX_ARG_COUNT (6)
 
 
 typedef struct Command Command;

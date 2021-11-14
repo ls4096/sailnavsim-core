@@ -23,7 +23,7 @@
 void* sailnavsim_rustlib_boatregistry_new(void);
 void sailnavsim_rustlib_boatregistry_free(void* boat_registry);
 
-int32_t sailnavsim_rustlib_boatregistry_group_add_boat(void* boat_registry, const char* group, const char* boat);
+int32_t sailnavsim_rustlib_boatregistry_group_add_boat(void* boat_registry, const char* group, const char* boat, const char* boat_altname);
 void sailnavsim_rustlib_boatregistry_group_remove_boat(void* boat_registry, const char* group, const char* boat);
 
 char* sailnavsim_rustlib_boatregistry_produce_group_membership_response(void* boat_registry, const char* group);

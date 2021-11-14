@@ -15,6 +15,7 @@
  */
 
 #include <stdlib.h>
+#include <string.h>
 
 #include "PerfUtils.h"
 
@@ -82,7 +83,7 @@ bool PerfUtils_getRandomBool()
 	return (getRandInt(1) == 1);
 }
 
-const char* PerfUtils_getRandomBoatGroupName()
+char* PerfUtils_getRandomBoatGroupName()
 {
 	static const char* PERF_BOAT_GROUPS[] = {
 		"G0",
@@ -99,9 +100,8 @@ const char* PerfUtils_getRandomBoatGroupName()
 		"G11",
 	};
 
-	return PERF_BOAT_GROUPS[getRandInt(11)];
+	return strdup(PERF_BOAT_GROUPS[getRandInt(11)]);
 }
-
 
 
 static int getRandInt(int max)

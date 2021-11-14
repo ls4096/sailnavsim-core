@@ -41,7 +41,7 @@ struct BoatEntry
 int BoatRegistry_init();
 void BoatRegistry_destroy();
 
-int BoatRegistry_add(Boat* boat, const char* name, const char* group);
+int BoatRegistry_add(Boat* boat, const char* name, const char* group, const char* boatAltName);
 Boat* BoatRegistry_get(const char* name);
 const BoatEntry* BoatRegistry_getBoatEntry(const char* name);
 Boat* BoatRegistry_remove(const char* name);

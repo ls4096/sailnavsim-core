@@ -24,6 +24,7 @@ typedef struct
 	Boat* boat;
 	char* name;
 	char* group;
+	char* boatAltName;
 } BoatInitEntry;
 
 

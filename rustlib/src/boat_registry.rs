@@ -15,10 +15,9 @@
  */
 
 use std::collections::HashMap;
-use std::collections::HashSet;
 
 pub struct BoatRegistry {
-    boat_groups: HashMap<String, HashSet<String>>
+    boat_groups: HashMap<String, HashMap<String, Option<String>>>
 }
 
 impl BoatRegistry {
@@ -28,15 +27,18 @@ impl BoatRegistry {
         }
     }
 
-    pub fn add_boat_to_group(&mut self, group: String, boat: String) -> bool {
+    pub fn add_boat_to_group(&mut self, group: String, boat: String, boat_altname: Option<String>) -> bool {
         match self.boat_groups.get_mut(&group) {
-            Some(boat_set) => {
-                boat_set.insert(boat)
+            Some(boat_group) => {
+                match boat_group.insert(boat, boat_altname) {
+                    Some(_) => false,
+                    None => true,
+                }
             }
             None => {
-                let mut boat_set = HashSet::new();
-                boat_set.insert(boat);
-                self.boat_groups.insert(group, boat_set);
+                let mut boat_group = HashMap::new();
+                boat_group.insert(boat, boat_altname);
+                self.boat_groups.insert(group, boat_group);
                 true
             }
         }
@@ -60,10 +62,15 @@ impl BoatRegistry {
         let mut resp = String::from("");
         match self.boat_groups.get(group) {
             Some(boats) => {
-                boats.iter().for_each(|b| {
-                    resp.push_str(b);
+                for (boat, altname) in boats.iter() {
+                    resp.push_str(boat);
+                    resp.push_str(",");
+                    resp.push_str(match altname {
+                        Some(an) => an,
+                        None => "!",
+                    });
                     resp.push_str("\n");
-                });
+                }
             },
             None => {
                 // Group not found, so nothing to do.

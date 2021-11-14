@@ -34,7 +34,7 @@ pub unsafe extern fn sailnavsim_rustlib_boatregistry_free(ptr_raw: *mut c_void) 
 }
 
 #[no_mangle]
-pub extern fn sailnavsim_rustlib_boatregistry_group_add_boat(boat_registry_raw: *mut c_void, group_raw: *const c_char, boat_raw: *const c_char) -> i32 {
+pub extern fn sailnavsim_rustlib_boatregistry_group_add_boat(boat_registry_raw: *mut c_void, group_raw: *const c_char, boat_raw: *const c_char, boat_altname_raw: *const c_char) -> i32 {
     let mut boat_registry = unsafe {
         Box::from_raw(boat_registry_raw as *mut BoatRegistry)
     };
@@ -57,7 +57,20 @@ pub extern fn sailnavsim_rustlib_boatregistry_group_add_boat(boat_registry_raw: 
         }
     };
 
-    let result = match boat_registry.add_boat_to_group(group, boat) {
+    let boat_altname = unsafe {
+        if (0 as *const c_char) == boat_altname_raw {
+            None
+        } else {
+            match CStr::from_ptr(boat_altname_raw).to_str() {
+                Ok(s) => Some(String::from(s)),
+                Err(_) => {
+                    return -3;
+                }
+            }
+        }
+    };
+
+    let result = match boat_registry.add_boat_to_group(group, boat, boat_altname) {
         true => 0,
         false => 1,
     };

@@ -98,7 +98,7 @@ static int startSql(const char* sqliteDbFilename)
 		fclose(fdb);
 	}
 
-	static const char* SELECT_BOAT_STMT_STR = "SELECT name, race, desiredCourse, started, boatType, boatFlags FROM Boat WHERE isActive = 1;";
+	static const char* SELECT_BOAT_STMT_STR = "SELECT name, race, desiredCourse, started, boatType, boatFlags, friendlyName FROM Boat WHERE isActive = 1;";
 	static const char* SELECT_BOATLOG_STMT_STR = "SELECT lat, lon, courseWater, speedWater, boatStatus, boatLocation, distanceTravelled, damage FROM BoatLog WHERE boatName=? ORDER BY time DESC LIMIT 1;";
 
 	int src;
@@ -171,6 +171,7 @@ static BoatInitEntry* getNextSql()
 			const int started = sqlite3_column_double(_sqlStmtBoat, 3);
 			const int boatType = sqlite3_column_double(_sqlStmtBoat, 4);
 			const int boatFlags = sqlite3_column_double(_sqlStmtBoat, 5);
+			const char* boatFriendlyName = (const char*) sqlite3_column_text(_sqlStmtBoat, 6);
 
 			src = sqlite3_reset(_sqlStmtBoatLog);
 			if (src != SQLITE_OK)
@@ -250,6 +251,23 @@ static BoatInitEntry* getNextSql()
 				{
 					ERRLOG("Failed to alloc entry->group!");
 
+					free(entry->name);
+					entry->name = 0;
+					free(entry);
+					entry = 0;
+					free(boat);
+					boat = 0;
+
+					continue;
+				}
+
+				entry->boatAltName = strdup(boatFriendlyName);
+				if (!entry->boatAltName)
+				{
+					ERRLOG("Failed to alloc entry->boatAltName!");
+
+					free(entry->group);
+					entry->group = 0;
 					free(entry->name);
 					entry->name = 0;
 					free(entry);

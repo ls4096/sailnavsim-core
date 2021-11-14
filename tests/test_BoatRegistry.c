@@ -41,7 +41,7 @@ int test_BoatRegistry_runBasic()
 
 	// Add boat
 	Boat* b = Boat_new(0.0, 0.0, 0, 0);
-	rc = BoatRegistry_add(b, "TestBoat0", 0);
+	rc = BoatRegistry_add(b, "TestBoat0", 0, 0);
 	EQUALS(BoatRegistry_OK, rc);
 
 	// 1 boat
@@ -81,7 +81,7 @@ int test_BoatRegistry_runBasic()
 
 	// Add boat
 	b = Boat_new(0.1, 0.1, 0, 0);
-	rc = BoatRegistry_add(b, "TestBoat0", 0);
+	rc = BoatRegistry_add(b, "TestBoat0", 0, 0);
 	EQUALS(BoatRegistry_OK, rc);
 
 	// 1 boat
@@ -91,7 +91,7 @@ int test_BoatRegistry_runBasic()
 
 	// Try to add boat with same name
 	b = Boat_new(0.9, 0.9, 0, 0);
-	rc = BoatRegistry_add(b, "TestBoat0", 0);
+	rc = BoatRegistry_add(b, "TestBoat0", 0, 0);
 	EQUALS(BoatRegistry_EXISTS, rc);
 	free(b);
 
@@ -109,7 +109,7 @@ int test_BoatRegistry_runBasic()
 
 	// Add new boat
 	b = Boat_new(1.0, 1.0, 0, 0);
-	rc = BoatRegistry_add(b, "TestBoat1", 0);
+	rc = BoatRegistry_add(b, "TestBoat1", 0, 0);
 	EQUALS(BoatRegistry_OK, rc);
 
 	// 2 boats now
@@ -187,7 +187,7 @@ int test_BoatRegistry_runBasicWithGroups()
 
 	// Add boat
 	Boat* b = Boat_new(0.0, 0.0, 0, 0);
-	rc = BoatRegistry_add(b, "TestBoat0", "TestGroup0");
+	rc = BoatRegistry_add(b, "TestBoat0", "TestGroup0", 0);
 	EQUALS(BoatRegistry_OK, rc);
 
 	// 1 boat
@@ -227,7 +227,7 @@ int test_BoatRegistry_runBasicWithGroups()
 
 	// Add boat
 	b = Boat_new(0.1, 0.1, 0, 0);
-	rc = BoatRegistry_add(b, "TestBoat0", "TestGroup1");
+	rc = BoatRegistry_add(b, "TestBoat0", "TestGroup1", "TestBoatAlt0");
 	EQUALS(BoatRegistry_OK, rc);
 
 	// 1 boat
@@ -237,7 +237,7 @@ int test_BoatRegistry_runBasicWithGroups()
 
 	// Try to add boat with same name
 	b = Boat_new(0.9, 0.9, 0, 0);
-	rc = BoatRegistry_add(b, "TestBoat0", "TestGroup2");
+	rc = BoatRegistry_add(b, "TestBoat0", "TestGroup2", 0);
 	EQUALS(BoatRegistry_EXISTS, rc);
 	free(b);
 
@@ -255,7 +255,7 @@ int test_BoatRegistry_runBasicWithGroups()
 
 	// Add new boat
 	b = Boat_new(1.0, 1.0, 0, 0);
-	rc = BoatRegistry_add(b, "TestBoat1", "TestGroup3");
+	rc = BoatRegistry_add(b, "TestBoat1", "TestGroup3", 0);
 	EQUALS(BoatRegistry_OK, rc);
 
 	// 2 boats now
@@ -361,7 +361,7 @@ int test_BoatRegistry_runLoad()
 			b = Boat_new(getBoatLatForR(r), getBoatLonForR(r), 0, 0);
 
 			sprintf(boatName, "Boat%d", r);
-			rc = BoatRegistry_add(b, boatName, 0);
+			rc = BoatRegistry_add(b, boatName, 0, 0);
 			if (boatList[r])
 			{
 				// Boat already exists.
@@ -565,6 +565,7 @@ int test_BoatRegistry_runLoadWithBigGroups()
 
 	char boatName[32];
 	char groupName[32];
+	char boatAltName[32];
 	Boat* b;
 	Boat* b2;
 	int rc;
@@ -592,7 +593,8 @@ int test_BoatRegistry_runLoadWithBigGroups()
 
 			sprintf(boatName, "Boat%d", r);
 			sprintf(groupName, "Group%d", r % 100);
-			rc = BoatRegistry_add(b, boatName, groupName);
+			sprintf(boatAltName, "BoatAltName%d", r % 127);
+			rc = BoatRegistry_add(b, boatName, groupName, ((r % 3 == 0) ? 0 : boatAltName));
 			if (boatList[r])
 			{
 				// Boat already exists.
@@ -694,7 +696,9 @@ static int verifyBoatsInGroupResponse(const bool* boatList, const char* groupNam
 	char* t;
 	char* u;
 
-	u = strtok_r(s, "\n", &t);
+	char boatAltName[32];
+
+	u = strtok_r(s, ",", &t);
 	while (u)
 	{
 		int boatNum = atoi(u + 4);
@@ -702,6 +706,18 @@ static int verifyBoatsInGroupResponse(const bool* boatList, const char* groupNam
 		localBoatList[boatNum / 100] = true;
 
 		u = strtok_r(0, "\n", &t);
+		IS_TRUE(u != 0);
+		if ((boatNum % 3) != 0)
+		{
+			sprintf(boatAltName, "BoatAltName%d", boatNum % 127);
+			IS_TRUE(0 == strcmp(u, boatAltName));
+		}
+		else
+		{
+			IS_TRUE((u[0] == '!') && (u[1] == 0));
+		}
+
+		u = strtok_r(0, ",", &t);
 	}
 
 	for (int i = 0; i < 100; i++)

@@ -69,7 +69,7 @@ void BoatRegistry_destroy()
 	}
 }
 
-int BoatRegistry_add(Boat* boat, const char* name, const char* group)
+int BoatRegistry_add(Boat* boat, const char* name, const char* group, const char* boatAltName)
 {
 	if (findBoatEntry(name) != 0)
 	{
@@ -140,7 +140,7 @@ int BoatRegistry_add(Boat* boat, const char* name, const char* group)
 	}
 
 	int rc;
-	if (group && (0 != (rc = sailnavsim_rustlib_boatregistry_group_add_boat(_rustlibRegistry, group, name))))
+	if (group && (0 != (rc = sailnavsim_rustlib_boatregistry_group_add_boat(_rustlibRegistry, group, name, boatAltName))))
 	{
 		ERRLOG1("Failed to add boat to group! rc=", rc);
 		free(newEntry);
