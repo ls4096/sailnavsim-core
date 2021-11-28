@@ -31,6 +31,7 @@
 #include <proteus/Weather.h>
 
 #include "NetServer.h"
+#include "Boat.h"
 #include "BoatRegistry.h"
 #include "Command.h"
 #include "ErrLog.h"
@@ -927,6 +928,10 @@ static void populateBoatGroupMembershipResponse(char* buf, size_t bufSize, const
 	else if (!entry->group)
 	{
 		snprintf(buf, bufSize, "%s,%s,%s\n", REQ_STR_BOAT_GROUP_MEMBERSHIP, key, "nogroup");
+	}
+	else if ((entry->boat->boatFlags & BOAT_FLAG_LIVE_SHARING_HIDDEN) != 0)
+	{
+		snprintf(buf, bufSize, "%s,%s,%s\n%s,?\n\n", REQ_STR_BOAT_GROUP_MEMBERSHIP, key, "ok", key);
 	}
 	else
 	{

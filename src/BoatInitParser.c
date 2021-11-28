@@ -359,6 +359,23 @@ static BoatInitEntry* getNextSql()
 					goto cleanup;
 				}
 
+				entry->boatAltName = strdup(boatFriendlyName);
+				if (!entry->boatAltName)
+				{
+					ERRLOG("Failed to alloc entry->boatAltName!");
+
+					free(entry->group);
+					entry->group = 0;
+					free(entry->name);
+					entry->name = 0;
+					free(entry);
+					entry = 0;
+					free(boat);
+					boat = 0;
+
+					goto cleanup;
+				}
+
 cleanup:
 				src = sqlite3_finalize(stmt);
 				if (SQLITE_OK != src)

@@ -54,7 +54,7 @@ static const uint8_t CMD_ACTION_ADD_BOAT_WITH_GROUP_VALS[COMMAND_MAX_ARG_COUNT] 
 
 
 #define BOAT_TYPE_MAX_VALUE (11)
-#define BOAT_FLAGS_MAX_VALUE (0x001f)
+#define BOAT_FLAGS_MAX_VALUE (0x003f)
 
 
 static void* commandThreadMain();
