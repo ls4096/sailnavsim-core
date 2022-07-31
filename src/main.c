@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2020-2021 ls4096 <ls4096@8bitbyte.ca>
+ * Copyright (C) 2020-2022 ls4096 <ls4096@8bitbyte.ca>
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Affero General Public License as published by
@@ -14,6 +14,7 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <errno.h>
 #include <math.h>
 #include <signal.h>
 #include <stdio.h>
@@ -21,7 +22,6 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
-#include <errno.h>
 
 #include <proteus/proteus.h>
 #include <proteus/Compass.h>
@@ -39,9 +39,10 @@
 #include "CelestialSight.h"
 #include "Command.h"
 #include "ErrLog.h"
+#include "GeoUtils.h"
 #include "Logger.h"
 #include "NetServer.h"
-#include "PerfUtils.h"
+#include "Perf.h"
 
 
 #define ERRLOG_ID "Main"
@@ -82,7 +83,7 @@
 #define PERF_TEST_MAX_BOAT_COUNT (204800)
 
 
-static const char* VERSION_STRING = "SailNavSim version 1.14.2 (" __DATE__ " " __TIME__ ")";
+static const char* VERSION_STRING = "SailNavSim version 1.14.3 (" __DATE__ " " __TIME__ ")";
 
 
 static int parseArgs(int argc, char** argv);
@@ -90,11 +91,6 @@ static void printVersionInfo();
 
 static void handleCommand(Command* cmd);
 static void handleBoatRegistryCommand(Command* cmd);
-
-static bool isApproximatelyNearVisibleLand(const proteus_GeoPos* pos, float visibility);
-static bool isLandFoundOnCircle(const proteus_GeoPos* pos, double r, int n);
-
-static void perfAddAndStartRandomBoat();
 
 static int _netPort = 0;
 
@@ -365,7 +361,7 @@ int main(int argc, char** argv)
 							}
 						}
 
-						isReportVisible = isApproximatelyNearVisibleLand(&boat->pos, wx.visibility);
+						isReportVisible = GeoUtils_isApproximatelyNearVisibleLand(&boat->pos, wx.visibility);
 					}
 					else
 					{
@@ -434,7 +430,7 @@ int main(int argc, char** argv)
 					// necessary boat count for the first set of measurements.
 					for (int i = currentBoatCount; i < PERF_TEST_MIN_BOAT_COUNT; i++)
 					{
-						perfAddAndStartRandomBoat();
+						Perf_addAndStartRandomBoat(0, &handleCommand);
 					}
 
 					perfFirst = false;
@@ -450,7 +446,7 @@ int main(int argc, char** argv)
 					// Double the number of boats for the next set of measurements.
 					for (unsigned int i = currentBoatCount; i < currentBoatCount * 2; i++)
 					{
-						perfAddAndStartRandomBoat();
+						Perf_addAndStartRandomBoat(0, &handleCommand);
 					}
 				}
 			}
@@ -556,88 +552,15 @@ int main(int argc, char** argv)
 	}
 
 
-	// If this is a performance test run, then run a few more tests before finishing.
+	// If this is a performance test run, then proceed with some additional performance measurements before exiting.
 	if (perfTest)
 	{
-		static const size_t POSITION_COUNT = 4096;
-		static const unsigned int ITERATIONS = 1000000;
-
-		struct timespec t0;
-		struct timespec t1;
-		long nsTaken;
-
-
-		proteus_GeoPos* positions = malloc(POSITION_COUNT * sizeof(proteus_GeoPos));
-		for (size_t i = 0; i < POSITION_COUNT; i++)
+		int rc = Perf_runAdditional(&handleCommand);
+		if (0 != rc)
 		{
-			positions[i].lat = PerfUtils_getRandomLat();
-			positions[i].lon = PerfUtils_getRandomLon();
+			return rc;
 		}
-
-
-		// Test "near visible land" performance.
-		if (0 != clock_gettime(CLOCK_MONOTONIC, &t0))
-		{
-			ERRLOG1("clock_gettime failed! errno=%d", errno);
-			return -1;
-		}
-		unsigned int landCount = 0;
-		for (unsigned int i = 0; i < ITERATIONS; i++)
-		{
-			if (isApproximatelyNearVisibleLand(positions + (i % POSITION_COUNT), 24000.0))
-			{
-				landCount++;
-			}
-		}
-		if (0 != clock_gettime(CLOCK_MONOTONIC, &t1))
-		{
-			ERRLOG1("clock_gettime failed! errno=%d", errno);
-			return -1;
-		}
-		nsTaken = (t1.tv_nsec - t0.tv_nsec) + 1000000000L * (t1.tv_sec - t0.tv_sec);
-		printf("1M land visibility checks (visible: %u/%u): %.3fs\n", landCount, ITERATIONS, ((double) nsTaken) / 1000000000.0);
-
-
-		// Test "celestial sight shooting" performance.
-		if (0 != clock_gettime(CLOCK_MONOTONIC, &t0))
-		{
-			ERRLOG1("clock_gettime failed! errno=%d", errno);
-			return -1;
-		}
-		double azs = 0.0;
-		double alts = 0.0;
-		unsigned int sightCount = 0;
-		const time_t shotTime = time(0);
-		CelestialSight sight;
-		for (unsigned int i = 0; i < ITERATIONS; i++)
-		{
-			CelestialSight_shoot(
-					shotTime,
-					positions + (i % POSITION_COUNT),
-					0,
-					1013.25,
-					15.0,
-					&sight);
-			if (sight.obj != -1)
-			{
-				sightCount++;
-
-				azs += sight.coord.az;
-				alts += sight.coord.alt;
-			}
-		}
-		if (0 != clock_gettime(CLOCK_MONOTONIC, &t1))
-		{
-			ERRLOG1("clock_gettime failed! errno=%d", errno);
-			return -1;
-		}
-
-		const double az_avg = azs / ((double) sightCount);
-		const double alt_avg = alts / ((double) sightCount);
-
-		nsTaken = (t1.tv_nsec - t0.tv_nsec) + 1000000000L * (t1.tv_sec - t0.tv_sec);
-		printf("1M celestial sight attempts (shot: %u/%u, az_avg: %.3f, alt_avg: %.3f): %.3fs\n", sightCount, ITERATIONS, az_avg, alt_avg, ((double) nsTaken) / 1000000000.0);
-	} // End of performance testing control block outside main loop.
+	}
 
 
 	BoatRegistry_destroy();
@@ -783,154 +706,4 @@ static void handleBoatRegistryCommand(Command* cmd)
 			break;
 		}
 	}
-}
-
-// Samples points inside a circle of the visibility radius for detecting nearby land.
-#define MIN_RADIUS (30.0)
-#define MAX_RADIUS (31000.0)
-#define MAX_SAMPLE_POINTS_ON_CIRCLE (32)
-static bool isApproximatelyNearVisibleLand(const proteus_GeoPos* pos, float visibility)
-{
-	if (!proteus_GeoInfo_isWater(pos))
-	{
-		return true;
-	}
-
-	int n = 4;
-	for (double r = MIN_RADIUS; r <= visibility && r <= MAX_RADIUS; r *= 2.0)
-	{
-		if (isLandFoundOnCircle(pos, r, n))
-		{
-			return true;
-		}
-
-		if (n < MAX_SAMPLE_POINTS_ON_CIRCLE)
-		{
-			n *= 2;
-		}
-	}
-
-	if (visibility > MIN_RADIUS)
-	{
-		// Check one last circle at the outer limits of visibility.
-		if (isLandFoundOnCircle(pos, visibility, n))
-		{
-			return true;
-		}
-	}
-
-	return false;
-}
-
-// Calculations to "look around" approximately uniformly (at "n" points) around an approximate circle (of somewhat-radius "r" metres) from the given position ("pos").
-static bool isLandFoundOnCircle(const proteus_GeoPos* pos, double r, int n)
-{
-	proteus_GeoPos p;
-
-	const double cosLat = cos(proteus_ScalarConv_deg2rad(pos->lat));
-
-	for (int i = 0; i < n; i++)
-	{
-		// We could make this more exact, but a close-enough approximation suffices here and will run faster...
-
-		p.lat = pos->lat +
-			(r * cos(i * 2.0 * M_PI / n) / 111120.0);
-
-		p.lon = pos->lon +
-			(r * sin(i * 2.0 * M_PI / n) / (111120.0 * cosLat));
-
-		if (p.lat > 90.0)
-		{
-			p.lat = 90.0;
-		}
-		else if (p.lat < -90.0)
-		{
-			p.lat = -90.0;
-		}
-
-		bool lonModified = false;
-		if (p.lon >= 180.0)
-		{
-			p.lon -= 360.0;
-			lonModified = true;
-		}
-		else if (p.lon < -180.0)
-		{
-			p.lon += 360.0;
-			lonModified = true;
-		}
-
-		// Where our latitude is close to -90 or +90, the calculated longitude value may be very strange,
-		// so, if we modified the longitude above, we do one more check just to be sure...
-		if (lonModified && (p.lon < -180.0 || p.lon >= 180.0))
-		{
-			// Longitude still out of bounds!
-			if (p.lat >= 0)
-			{
-				// Northern hemisphere very near the pole, so it's all water.
-				return false;
-			}
-			else
-			{
-				// Southern hemisphere very near the pole, so it's all land.
-				return true;
-			}
-		}
-
-		if (!proteus_GeoInfo_isWater(&p))
-		{
-			return true;
-		}
-	}
-
-	return false;
-}
-
-static void perfAddAndStartRandomBoat()
-{
-	Command cmd;
-
-	cmd.name = PerfUtils_getRandomName();
-	cmd.next = 0;
-
-
-	// Add boat.
-	const bool withGroup = PerfUtils_getRandomBool();
-	cmd.action = (withGroup ? COMMAND_ACTION_ADD_BOAT_WITH_GROUP : COMMAND_ACTION_ADD_BOAT);
-	cmd.values[0].d = PerfUtils_getRandomLat();
-	cmd.values[1].d = PerfUtils_getRandomLon();
-	cmd.values[2].i = PerfUtils_getRandomBoatType();
-	cmd.values[3].i = PerfUtils_getRandomBoatFlags();
-	if (withGroup)
-	{
-		cmd.values[4].s = PerfUtils_getRandomBoatGroupName();
-		cmd.values[5].s = PerfUtils_getRandomName(); // Boat alt name
-	}
-
-	handleCommand(&cmd);
-
-	if (withGroup)
-	{
-		free(cmd.values[4].s);
-		cmd.values[4].s = 0;
-
-		free(cmd.values[5].s);
-		cmd.values[5].s = 0;
-	}
-
-
-	// Set course.
-	cmd.action = (PerfUtils_getRandomBool() ? COMMAND_ACTION_COURSE_TRUE : COMMAND_ACTION_COURSE_MAG);
-	cmd.values[0].i = PerfUtils_getRandomCourse();
-
-	handleCommand(&cmd);
-
-
-	// Start boat.
-	cmd.action = COMMAND_ACTION_START;
-
-	handleCommand(&cmd);
-
-
-	free(cmd.name);
 }

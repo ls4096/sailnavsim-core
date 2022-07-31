@@ -11,9 +11,10 @@ OBJS = \
 	src/CelestialSight.o \
 	src/Command.o \
 	src/ErrLog.o \
+	src/GeoUtils.o \
 	src/Logger.o \
 	src/NetServer.o \
-	src/PerfUtils.o
+	src/Perf.o
 
 TESTS_OBJS = \
 	tests/test_BoatRegistry.o

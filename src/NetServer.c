@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2021 ls4096 <ls4096@8bitbyte.ca>
+ * Copyright (C) 2021-2022 ls4096 <ls4096@8bitbyte.ca>
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Affero General Public License as published by
@@ -86,6 +86,10 @@ typedef union
 } ReqValue;
 
 
+#define RECV_MSG_BUF_SIZE (1024)
+#define SEND_MSG_BUF_SIZE (64 * 1024)
+
+
 static int startListen(unsigned int port);
 
 static void* netServerThreadMain(void* arg);
@@ -94,7 +98,6 @@ static int queueAcceptedFd(int fd);
 static void* netServerWorkerThreadMain(void* arg);
 static int getNextFd();
 static void processConnection(unsigned int workerThreadId, int fd);
-static int handleMessage(int fd, char* reqStr);
 
 static void incCounter(int ctr);
 
@@ -148,6 +151,134 @@ int NetServer_init(unsigned int port, unsigned int workerThreads)
 #endif
 
 	return 0;
+}
+
+int NetServer_handleRequest(int writeFd, char* reqStr)
+{
+	char* s;
+	char* t;
+
+	if ((s = strtok_r(reqStr, ",", &t)) == 0)
+	{
+		goto fail;
+	}
+
+	const int reqType = getReqType(s);
+	if (reqType == REQ_TYPE_INVALID)
+	{
+		goto fail;
+	}
+
+	const uint8_t* vals = getReqExpectedValueTypes(reqType);
+
+	ReqValue values[REQ_MAX_ARG_COUNT];
+
+	for (int i = 0; i < REQ_MAX_ARG_COUNT; i++)
+	{
+		switch (vals[i])
+		{
+			case REQ_VAL_NONE:
+				break;
+
+			case REQ_VAL_INT:
+			case REQ_VAL_DOUBLE:
+			case REQ_VAL_STRING:
+				if ((s = strtok_r(0, ",", &t)) == 0)
+				{
+					goto fail;
+				}
+
+				if (vals[i] == REQ_VAL_INT)
+				{
+					values[i].i = strtol(s, 0, 10);
+				}
+				else if (vals[i] == REQ_VAL_DOUBLE)
+				{
+					values[i].d = strtod(s, 0);
+				}
+				else
+				{
+					values[i].s = s;
+				}
+
+				break;
+
+			default:
+				goto fail;
+		}
+	}
+
+	if (!areValuesValidForReqType(reqType, values))
+	{
+		goto fail;
+	}
+
+
+	char buf[SEND_MSG_BUF_SIZE];
+	proteus_GeoPos pos = { values[0].d, values[1].d };
+
+	switch (reqType)
+	{
+		case REQ_TYPE_GET_WIND:
+			populateWindResponse(buf, SEND_MSG_BUF_SIZE, &pos, false);
+			break;
+		case REQ_TYPE_GET_WIND_GUST:
+			populateWindResponse(buf, SEND_MSG_BUF_SIZE, &pos, true);
+			break;
+		case REQ_TYPE_GET_OCEAN_CURRENT:
+			populateOceanResponse(buf, SEND_MSG_BUF_SIZE, &pos, false);
+			break;
+		case REQ_TYPE_GET_SEA_ICE:
+			populateOceanResponse(buf, SEND_MSG_BUF_SIZE, &pos, true);
+			break;
+		case REQ_TYPE_GET_WAVE_HEIGHT:
+			populateWaveResponse(buf, SEND_MSG_BUF_SIZE, &pos);
+			break;
+		case REQ_TYPE_GET_BOAT_DATA:
+		case REQ_TYPE_GET_BOAT_DATA_NO_CELESTIAL:
+			populateBoatDataResponse(buf, SEND_MSG_BUF_SIZE, values[0].s, (reqType == REQ_TYPE_GET_BOAT_DATA_NO_CELESTIAL));
+			break;
+		case REQ_TYPE_BOAT_CMD:
+			populateBoatCmdResponse(buf, SEND_MSG_BUF_SIZE, &t);
+			break;
+		case REQ_TYPE_BOAT_GROUP_MEMBERSHIP:
+			populateBoatGroupMembershipResponse(buf, SEND_MSG_BUF_SIZE, values[0].s);
+			break;
+		default:
+			goto fail;
+	}
+
+	const int bl = strlen(buf);
+	int wt = 0;
+
+	for (;;)
+	{
+		int wb = write(writeFd, buf + wt, bl - wt);
+
+		if (wb < 0)
+		{
+			return -1;
+		}
+		else
+		{
+			wt += wb;
+		}
+
+		if (wt == bl)
+		{
+			break;
+		}
+	}
+
+	return 0;
+
+fail:
+	if (write(writeFd, "error\n", 6) != 6)
+	{
+		return -1;
+	}
+
+	return -1;
 }
 
 
@@ -457,9 +588,6 @@ done:
 	return fd;
 }
 
-#define RECV_MSG_BUF_SIZE (1024)
-#define SEND_MSG_BUF_SIZE (64 * 1024)
-
 static void processConnection(unsigned int workerThreadId, int fd)
 {
 	char buf[RECV_MSG_BUF_SIZE];
@@ -554,7 +682,7 @@ static void processConnection(unsigned int workerThreadId, int fd)
 
 		// Handle the request message.
 		incCounter(COUNTER_MESSAGE);
-		if (handleMessage(fd, buf) != 0)
+		if (NetServer_handleRequest(fd, buf) != 0)
 		{
 			ERRLOG1("worker%u: Failed to handle request!", workerThreadId);
 			incCounter(COUNTER_MESSAGE_FAIL);
@@ -573,134 +701,6 @@ static void processConnection(unsigned int workerThreadId, int fd)
 			break;
 		}
 	}
-}
-
-static int handleMessage(int fd, char* reqStr)
-{
-	char* s;
-	char* t;
-
-	if ((s = strtok_r(reqStr, ",", &t)) == 0)
-	{
-		goto fail;
-	}
-
-	const int reqType = getReqType(s);
-	if (reqType == REQ_TYPE_INVALID)
-	{
-		goto fail;
-	}
-
-	const uint8_t* vals = getReqExpectedValueTypes(reqType);
-
-	ReqValue values[REQ_MAX_ARG_COUNT];
-
-	for (int i = 0; i < REQ_MAX_ARG_COUNT; i++)
-	{
-		switch (vals[i])
-		{
-			case REQ_VAL_NONE:
-				break;
-
-			case REQ_VAL_INT:
-			case REQ_VAL_DOUBLE:
-			case REQ_VAL_STRING:
-				if ((s = strtok_r(0, ",", &t)) == 0)
-				{
-					goto fail;
-				}
-
-				if (vals[i] == REQ_VAL_INT)
-				{
-					values[i].i = strtol(s, 0, 10);
-				}
-				else if (vals[i] == REQ_VAL_DOUBLE)
-				{
-					values[i].d = strtod(s, 0);
-				}
-				else
-				{
-					values[i].s = s;
-				}
-
-				break;
-
-			default:
-				goto fail;
-		}
-	}
-
-	if (!areValuesValidForReqType(reqType, values))
-	{
-		goto fail;
-	}
-
-
-	char buf[SEND_MSG_BUF_SIZE];
-	proteus_GeoPos pos = { values[0].d, values[1].d };
-
-	switch (reqType)
-	{
-		case REQ_TYPE_GET_WIND:
-			populateWindResponse(buf, SEND_MSG_BUF_SIZE, &pos, false);
-			break;
-		case REQ_TYPE_GET_WIND_GUST:
-			populateWindResponse(buf, SEND_MSG_BUF_SIZE, &pos, true);
-			break;
-		case REQ_TYPE_GET_OCEAN_CURRENT:
-			populateOceanResponse(buf, SEND_MSG_BUF_SIZE, &pos, false);
-			break;
-		case REQ_TYPE_GET_SEA_ICE:
-			populateOceanResponse(buf, SEND_MSG_BUF_SIZE, &pos, true);
-			break;
-		case REQ_TYPE_GET_WAVE_HEIGHT:
-			populateWaveResponse(buf, SEND_MSG_BUF_SIZE, &pos);
-			break;
-		case REQ_TYPE_GET_BOAT_DATA:
-		case REQ_TYPE_GET_BOAT_DATA_NO_CELESTIAL:
-			populateBoatDataResponse(buf, SEND_MSG_BUF_SIZE, values[0].s, (reqType == REQ_TYPE_GET_BOAT_DATA_NO_CELESTIAL));
-			break;
-		case REQ_TYPE_BOAT_CMD:
-			populateBoatCmdResponse(buf, SEND_MSG_BUF_SIZE, &t);
-			break;
-		case REQ_TYPE_BOAT_GROUP_MEMBERSHIP:
-			populateBoatGroupMembershipResponse(buf, SEND_MSG_BUF_SIZE, values[0].s);
-			break;
-		default:
-			goto fail;
-	}
-
-	const int bl = strlen(buf);
-	int wt = 0;
-
-	for (;;)
-	{
-		int wb = write(fd, buf + wt, bl - wt);
-
-		if (wb < 0)
-		{
-			return -1;
-		}
-		else
-		{
-			wt += wb;
-		}
-
-		if (wt == bl)
-		{
-			break;
-		}
-	}
-
-	return 0;
-
-fail:
-	if (write(fd, "error\n", 6) != 6)
-	{
-		return -1;
-	}
-
-	return -1;
 }
 
 static void incCounter(int ctr)

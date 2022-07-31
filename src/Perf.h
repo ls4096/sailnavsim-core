@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2021-2022 ls4096 <ls4096@8bitbyte.ca>
+ * Copyright (C) 2020-2022 ls4096 <ls4096@8bitbyte.ca>
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Affero General Public License as published by
@@ -14,12 +14,16 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-#ifndef _NetServer_h_
-#define _NetServer_h_
+#ifndef _Perf_h_
+#define _Perf_h_
+
+#include "Command.h"
 
 
-int NetServer_init(unsigned int port, unsigned int workerThreads);
-int NetServer_handleRequest(int writeFd, char* reqStr);
+typedef void (*Perf_CommandHandlerFunc)(Command*);
+
+void Perf_addAndStartRandomBoat(int groupNameLen, Perf_CommandHandlerFunc commandHandler);
+int Perf_runAdditional(Perf_CommandHandlerFunc commandHandler);
 
 
-#endif // _NetServer_h_
+#endif // _Perf_h_
