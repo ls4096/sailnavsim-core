@@ -26,6 +26,10 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
+#include <proteus/Weather.h>
+#include <proteus/Ocean.h>
+#include <proteus/Wave.h>
+
 #include "Perf.h"
 
 #include "BoatRegistry.h"
@@ -57,10 +61,14 @@
 	PERF_CLOCK_NS_TAKEN = (_perf_clock_t1.tv_nsec - _perf_clock_t0.tv_nsec) + 1000000000L * (_perf_clock_t1.tv_sec - _perf_clock_t0.tv_sec); \
 } while (0)
 
+// Kilo iterations per second
+#define PERF_CLOCK_KIPS (((double) ITERATIONS) / (((double) PERF_CLOCK_NS_TAKEN) / 1000000.0))
+
 
 static int runAddBoats(unsigned int boatCount);
 static int runRemoveAllBoats(bool expectNullBoats);
 static int runNetServerRequests(int netServerWriteFd, Perf_CommandHandlerFunc commandHandler);
+static int runDataGets();
 
 static char* getRandomName(unsigned int len);
 static double getRandomLat();
@@ -147,7 +155,7 @@ int Perf_runAdditional(Perf_CommandHandlerFunc commandHandler)
 		return rc;
 	}
 
-	static const unsigned int BOAT_COUNTS[] = {
+	const unsigned int BOAT_COUNTS[] = {
 		10000,
 		20000,
 		50000,
@@ -182,12 +190,18 @@ int Perf_runAdditional(Perf_CommandHandlerFunc commandHandler)
 		return rc;
 	}
 
+	rc = runDataGets();
+	if (rc != 0)
+	{
+		return rc;
+	}
+
 
 	PERF_CLOCK_INIT();
 
 
-	static const size_t POSITION_COUNT = 4096;
-	static const unsigned int ITERATIONS = 1000000;
+	const size_t POSITION_COUNT = 4096;
+	unsigned int ITERATIONS;
 
 
 	proteus_GeoPos* positions = malloc(POSITION_COUNT * sizeof(proteus_GeoPos));
@@ -200,6 +214,7 @@ int Perf_runAdditional(Perf_CommandHandlerFunc commandHandler)
 
 	// Test "near visible land" performance.
 	PERF_CLOCK_RESET();
+	ITERATIONS = 100000;
 	unsigned int landCount = 0;
 	for (unsigned int i = 0; i < ITERATIONS; i++)
 	{
@@ -209,11 +224,12 @@ int Perf_runAdditional(Perf_CommandHandlerFunc commandHandler)
 		}
 	}
 	PERF_CLOCK_MEASURE();
-	printf("1M land visibility checks (visible: %u/%u): %.3fs\n", landCount, ITERATIONS, ((double) PERF_CLOCK_NS_TAKEN) / 1000000000.0);
+	printf("Land visibility checks per second (total visible: %u/%u): %.1fk\n", landCount, ITERATIONS, PERF_CLOCK_KIPS);
 
 
 	// Test "celestial sight shooting" performance.
 	PERF_CLOCK_RESET();
+	ITERATIONS = 1000000;
 	double azs = 0.0;
 	double alts = 0.0;
 	unsigned int sightCount = 0;
@@ -242,7 +258,7 @@ int Perf_runAdditional(Perf_CommandHandlerFunc commandHandler)
 	const double az_avg = azs / ((double) sightCount);
 	const double alt_avg = alts / ((double) sightCount);
 
-	printf("1M celestial sight attempts (shot: %u/%u, az_avg: %.3f, alt_avg: %.3f): %.3fs\n", sightCount, ITERATIONS, az_avg, alt_avg, ((double) PERF_CLOCK_NS_TAKEN) / 1000000000.0);
+	printf("Celestial sight attempts per second (total shot: %u/%u, az_avg: %.3f, alt_avg: %.3f): %.1fk\n", sightCount, ITERATIONS, az_avg, alt_avg, PERF_CLOCK_KIPS);
 
 
 	free(positions);
@@ -360,10 +376,10 @@ static int runRemoveAllBoats(bool expectNullBoats)
 
 static int runNetServerRequests(int netServerWriteFd, Perf_CommandHandlerFunc commandHandler)
 {
-	static const unsigned int ITERATIONS = 100000;
-	static const size_t BOAT_COUNT = 100000;
-	static const size_t POSITION_COUNT = 100000;
-	static const size_t REQ_STR_BUF_SIZE = 256;
+	const unsigned int ITERATIONS = 100000;
+	const size_t BOAT_COUNT = 100000;
+	const size_t POSITION_COUNT = 100000;
+	const size_t REQ_STR_BUF_SIZE = 256;
 
 
 	proteus_GeoPos* positions = malloc(POSITION_COUNT * sizeof(proteus_GeoPos));
@@ -391,7 +407,7 @@ static int runNetServerRequests(int netServerWriteFd, Perf_CommandHandlerFunc co
 		NetServer_handleRequest(netServerWriteFd, reqStr);
 	}
 	PERF_CLOCK_MEASURE();
-	printf("NetServer \"get wind\" requests per second: %.0f\n", ((double) ITERATIONS) / (((double) PERF_CLOCK_NS_TAKEN) / 1000000000.0));
+	printf("NetServer \"get wind\" requests per second: %.1fk\n", PERF_CLOCK_KIPS);
 
 
 	// "Get wind gust" performance
@@ -404,7 +420,7 @@ static int runNetServerRequests(int netServerWriteFd, Perf_CommandHandlerFunc co
 		NetServer_handleRequest(netServerWriteFd, reqStr);
 	}
 	PERF_CLOCK_MEASURE();
-	printf("NetServer \"get wind gust\" requests per second: %.0f\n", ((double) ITERATIONS) / (((double) PERF_CLOCK_NS_TAKEN) / 1000000000.0));
+	printf("NetServer \"get wind gust\" requests per second: %.1fk\n", PERF_CLOCK_KIPS);
 
 
 	// "Get ocean current" performance
@@ -417,7 +433,7 @@ static int runNetServerRequests(int netServerWriteFd, Perf_CommandHandlerFunc co
 		NetServer_handleRequest(netServerWriteFd, reqStr);
 	}
 	PERF_CLOCK_MEASURE();
-	printf("NetServer \"get ocean current\" requests per second: %.0f\n", ((double) ITERATIONS) / (((double) PERF_CLOCK_NS_TAKEN) / 1000000000.0));
+	printf("NetServer \"get ocean current\" requests per second: %.1fk\n", PERF_CLOCK_KIPS);
 
 
 	// "Get sea ice" performance
@@ -430,7 +446,7 @@ static int runNetServerRequests(int netServerWriteFd, Perf_CommandHandlerFunc co
 		NetServer_handleRequest(netServerWriteFd, reqStr);
 	}
 	PERF_CLOCK_MEASURE();
-	printf("NetServer \"get sea ice\" requests per second: %.0f\n", ((double) ITERATIONS) / (((double) PERF_CLOCK_NS_TAKEN) / 1000000000.0));
+	printf("NetServer \"get sea ice\" requests per second: %.1fk\n", PERF_CLOCK_KIPS);
 
 
 	// "Get wave height" performance
@@ -443,7 +459,7 @@ static int runNetServerRequests(int netServerWriteFd, Perf_CommandHandlerFunc co
 		NetServer_handleRequest(netServerWriteFd, reqStr);
 	}
 	PERF_CLOCK_MEASURE();
-	printf("NetServer \"get wave height\" requests per second: %.0f\n", ((double) ITERATIONS) / (((double) PERF_CLOCK_NS_TAKEN) / 1000000000.0));
+	printf("NetServer \"get wave height\" requests per second: %.1fk\n", PERF_CLOCK_KIPS);
 
 
 	const BoatEntry* firstBoatEntry = BoatRegistry_getAllBoats(0);
@@ -468,7 +484,7 @@ static int runNetServerRequests(int netServerWriteFd, Perf_CommandHandlerFunc co
 		}
 	}
 	PERF_CLOCK_MEASURE();
-	printf("NetServer \"get boat data\" requests per second: %.0f\n", ((double) ITERATIONS) / (((double) PERF_CLOCK_NS_TAKEN) / 1000000000.0));
+	printf("NetServer \"get boat data\" requests per second: %.1fk\n", PERF_CLOCK_KIPS);
 
 
 	// "Get boat group members" performance
@@ -489,7 +505,7 @@ static int runNetServerRequests(int netServerWriteFd, Perf_CommandHandlerFunc co
 		}
 	}
 	PERF_CLOCK_MEASURE();
-	printf("NetServer \"get boat group members\" requests per second: %.0f\n", ((double) ITERATIONS) / (((double) PERF_CLOCK_NS_TAKEN) / 1000000000.0));
+	printf("NetServer \"get boat group members\" requests per second: %.1fk\n", PERF_CLOCK_KIPS);
 
 
 	if (0 != runRemoveAllBoats(false))
@@ -497,6 +513,76 @@ static int runNetServerRequests(int netServerWriteFd, Perf_CommandHandlerFunc co
 		ERRLOG("Failed to remove all boats!");
 		return -1;
 	}
+
+	free(positions);
+	positions = 0;
+
+	return 0;
+}
+
+static int runDataGets()
+{
+	const unsigned int ITERATIONS = 1000000;
+	const size_t POSITION_COUNT = 1000000;
+
+
+	proteus_GeoPos* positions = malloc(POSITION_COUNT * sizeof(proteus_GeoPos));
+	for (size_t i = 0; i < POSITION_COUNT; i++)
+	{
+		positions[i].lat = getRandomLat();
+		positions[i].lon = getRandomLon();
+	}
+
+	PERF_CLOCK_INIT();
+
+
+	// Weather_get(windOnly=true) performance
+	PERF_CLOCK_RESET();
+	for (unsigned int i = 0; i < ITERATIONS; i++)
+	{
+		const proteus_GeoPos* pos = positions + (i % POSITION_COUNT);
+		proteus_Weather wx;
+		proteus_Weather_get(pos, &wx, true);
+	}
+	PERF_CLOCK_MEASURE();
+	printf("Weather_get(windOnly=true) calls per second: %.1fk\n", PERF_CLOCK_KIPS);
+
+
+	// Weather_get(windOnly=false) performance
+	PERF_CLOCK_RESET();
+	for (unsigned int i = 0; i < ITERATIONS; i++)
+	{
+		const proteus_GeoPos* pos = positions + (i % POSITION_COUNT);
+		proteus_Weather wx;
+		proteus_Weather_get(pos, &wx, false);
+	}
+	PERF_CLOCK_MEASURE();
+	printf("Weather_get(windOnly=false) calls per second: %.1fk\n", PERF_CLOCK_KIPS);
+
+
+	// Ocean_get performance
+	PERF_CLOCK_RESET();
+	for (unsigned int i = 0; i < ITERATIONS; i++)
+	{
+		const proteus_GeoPos* pos = positions + (i % POSITION_COUNT);
+		proteus_OceanData od;
+		proteus_Ocean_get(pos, &od);
+	}
+	PERF_CLOCK_MEASURE();
+	printf("Ocean_get calls per second: %.1fk\n", PERF_CLOCK_KIPS);
+
+
+	// Wave_get performance
+	PERF_CLOCK_RESET();
+	for (unsigned int i = 0; i < ITERATIONS; i++)
+	{
+		const proteus_GeoPos* pos = positions + (i % POSITION_COUNT);
+		proteus_WaveData wd;
+		proteus_Wave_get(pos, &wd);
+	}
+	PERF_CLOCK_MEASURE();
+	printf("Wave_get calls per second: %.1fk\n", PERF_CLOCK_KIPS);
+
 
 	free(positions);
 	positions = 0;

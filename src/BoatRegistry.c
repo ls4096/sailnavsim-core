@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2020-2021 ls4096 <ls4096@8bitbyte.ca>
+ * Copyright (C) 2020-2022 ls4096 <ls4096@8bitbyte.ca>
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Affero General Public License as published by
@@ -48,8 +48,9 @@ struct BoatEntryEntry
 	BoatEntryEntry* next;
 };
 
-#define BUCKET_COUNT (4096)
-#define BUCKET_MASK (0x0fff)
+#define BUCKET_BITS (14)
+#define BUCKET_COUNT (1 << BUCKET_BITS)
+#define BUCKET_MASK (BUCKET_COUNT - 1)
 
 static BoatEntryEntry* _buckets[BUCKET_COUNT] = { 0 };
 

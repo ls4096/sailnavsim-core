@@ -77,13 +77,14 @@
 #define SQLITE_DB_FILENAME "./sailnavsim.sql"
 
 
-#define PERF_TEST_ITERATIONS_WARMUP (10)
-#define PERF_TEST_ITERATIONS_MEASURE (40)
-#define PERF_TEST_MIN_BOAT_COUNT (100)
-#define PERF_TEST_MAX_BOAT_COUNT (204800)
+#define PERF_TEST_ITERATIONS_WARMUP (1)
+#define PERF_TEST_ITERATIONS_MEASURE (2)
+#define PERF_TEST_ITERATIONS_FACTOR_INIT (1024)
+#define PERF_TEST_MIN_BOAT_COUNT (25)
+#define PERF_TEST_MAX_BOAT_COUNT (819200)
 
 
-static const char* VERSION_STRING = "SailNavSim version 1.14.3 (" __DATE__ " " __TIME__ ")";
+static const char* VERSION_STRING = "SailNavSim version 1.15.0 (" __DATE__ " " __TIME__ ")";
 
 
 static int parseArgs(int argc, char** argv);
@@ -241,6 +242,7 @@ int main(int argc, char** argv)
 	int lastIter = 1;
 
 	int perfIter = 0;
+	int perfTestIterationsFactor = PERF_TEST_ITERATIONS_FACTOR_INIT;
 	long perfTotalNs = 0;
 	bool perfFirst = true;
 
@@ -452,19 +454,34 @@ int main(int argc, char** argv)
 			}
 
 			// Only measure after warm-up period.
-			if (perfIter >= PERF_TEST_ITERATIONS_WARMUP)
+			if (perfIter >= PERF_TEST_ITERATIONS_WARMUP * perfTestIterationsFactor)
 			{
-				if (perfIter >= PERF_TEST_ITERATIONS_WARMUP + PERF_TEST_ITERATIONS_MEASURE)
+				if (perfIter >= (PERF_TEST_ITERATIONS_WARMUP + PERF_TEST_ITERATIONS_MEASURE) * perfTestIterationsFactor)
 				{
 					// We're done this set, so print result and proceed to next set of iterations.
 					BoatRegistry_getAllBoats(&currentBoatCount);
 
-					long bips = PERF_TEST_ITERATIONS_MEASURE * currentBoatCount * 1000000000L / perfTotalNs;
+					const long bips = PERF_TEST_ITERATIONS_MEASURE * perfTestIterationsFactor * currentBoatCount * 1000000000L / perfTotalNs;
 
-					printf("Boat count %d...Boat iterations per second: %ld\n", currentBoatCount, bips);
+					printf("Boat count %d...Boat iterations per second: %.1fk\n", currentBoatCount, ((double)bips) / 1000.0);
 
 					perfIter = -1;
 					perfTotalNs = 0;
+
+					switch (currentBoatCount)
+					{
+						case 25:
+						case 50:
+						case 100:
+						case 200:
+						case 400:
+						case 800:
+						case 3200:
+						case 12800:
+						case 51200:
+						case 204800:
+							perfTestIterationsFactor >>= 1;
+					}
 				}
 				else
 				{
