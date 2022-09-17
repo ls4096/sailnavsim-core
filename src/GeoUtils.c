@@ -64,21 +64,22 @@ bool GeoUtils_isApproximatelyNearVisibleLand(const proteus_GeoPos* pos, float vi
 
 
 // Calculations to "look around" approximately uniformly (at "n" points) around an approximate circle (of somewhat-radius "r" metres) from the given position ("pos").
+#define APPROX_METRES_IN_GEO_DEG (60.0 * 1852.0)
 static bool isLandFoundOnCircle(const proteus_GeoPos* pos, double r, int n)
 {
-	proteus_GeoPos p;
+	// We could make these calculations more geographically accurate, but a close-enough approximation suffices here and runs faster.
 
 	const double cosLat = cos(proteus_ScalarConv_deg2rad(pos->lat));
+	const double rGeoDeg = r / APPROX_METRES_IN_GEO_DEG;
+	const double rGeoDegCosLat = r / (APPROX_METRES_IN_GEO_DEG * cosLat);
+	const double radsPerPoint = 2.0 * M_PI / n;
 
 	for (int i = 0; i < n; i++)
 	{
-		// We could make this more exact, but a close-enough approximation suffices here and will run faster...
+		proteus_GeoPos p;
 
-		p.lat = pos->lat +
-			(r * cos(i * 2.0 * M_PI / n) / 111120.0);
-
-		p.lon = pos->lon +
-			(r * sin(i * 2.0 * M_PI / n) / (111120.0 * cosLat));
+		p.lat = pos->lat + (rGeoDeg * cos(i * radsPerPoint));
+		p.lon = pos->lon + (rGeoDegCosLat * sin(i * radsPerPoint));
 
 		if (p.lat > 90.0)
 		{
@@ -102,7 +103,7 @@ static bool isLandFoundOnCircle(const proteus_GeoPos* pos, double r, int n)
 		}
 
 		// Where our latitude is close to -90 or +90, the calculated longitude value may be very strange,
-		// so, if we modified the longitude above, we do one more check just to be sure...
+		// so, if we modified the longitude above, we do one more check just to be sure.
 		if (lonModified && (p.lon < -180.0 || p.lon >= 180.0))
 		{
 			// Longitude still out of bounds!
