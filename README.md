@@ -9,9 +9,9 @@ A global sailing navigation simulator, using real-world geographic information a
 
 ### Build tools
 
-- make
-- gcc
-- Rust toolchain (rustc, cargo, etc.)
+- Make
+- C compiler (gcc or clang, etc.)
+- Rust toolchain (rustc and cargo, etc.)
 
 ### Tested build/run environments
 

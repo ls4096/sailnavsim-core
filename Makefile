@@ -46,17 +46,17 @@ $(RUSTLIB_A):
 
 
 src/%.o: src/%.c
-	gcc -c -Wall -Wextra -O2 -D_GNU_SOURCE $(SRC_INCLUDES) -o $@ $<
+	$(CC) -c -Wall -Wextra -O2 -D_GNU_SOURCE $(SRC_INCLUDES) -o $@ $<
 
 sailnavsim: $(OBJS) src/main.o $(LIBPROTEUS_SO) $(RUSTLIB_A)
-	gcc -O2 -D_GNU_SOURCE -o sailnavsim src/main.o $(OBJS) $(RUSTLIB_A) $(SOLIB_DEPS)
+	$(CC) -O2 -D_GNU_SOURCE -o sailnavsim src/main.o $(OBJS) $(RUSTLIB_A) $(SOLIB_DEPS)
 
 
 tests/%.o: tests/%.c
-	gcc -c -Wall -Wextra -O2 -D_GNU_SOURCE -Isrc $(SRC_INCLUDES) -o $@ $<
+	$(CC) -c -Wall -Wextra -O2 -D_GNU_SOURCE -Isrc $(SRC_INCLUDES) -o $@ $<
 
 sailnavsim_tests: $(TESTS_OBJS) $(OBJS) tests/tests_main.o $(LIBPROTEUS_SO) $(RUSTLIB_A)
-	gcc -O2 -D_GNU_SOURCE -o sailnavsim_tests tests/tests_main.o $(TESTS_OBJS) $(OBJS) $(RUSTLIB_A) $(SOLIB_DEPS)
+	$(CC) -O2 -D_GNU_SOURCE -o sailnavsim_tests tests/tests_main.o $(TESTS_OBJS) $(OBJS) $(RUSTLIB_A) $(SOLIB_DEPS)
 
 
 clean:
