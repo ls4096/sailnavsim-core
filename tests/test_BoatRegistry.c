@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2020-2021 ls4096 <ls4096@8bitbyte.ca>
+ * Copyright (C) 2020-2022 ls4096 <ls4096@8bitbyte.ca>
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Affero General Public License as published by
@@ -18,6 +18,8 @@
 #include <string.h>
 #include <time.h>
 
+#include <sailnavsim_rustlib.h>
+
 #include "tests.h"
 #include "tests_assert.h"
 
@@ -28,6 +30,7 @@ int test_BoatRegistry_runBasic()
 {
 	unsigned int boatCount = -1;
 	BoatEntry* entry;
+	void* iterator;
 	int rc;
 
 	rc = BoatRegistry_init();
@@ -35,7 +38,9 @@ int test_BoatRegistry_runBasic()
 
 
 	// No boats
-	entry = BoatRegistry_getAllBoats(&boatCount);
+	iterator = sailnavsim_rustlib_boatregistry_get_boats_iterator(BoatRegistry_registry(), &boatCount);
+	entry = sailnavsim_rustlib_boatregistry_boats_iterator_get_next(iterator);
+	sailnavsim_rustlib_boatregistry_free_boats_iterator(iterator);
 	IS_TRUE(entry == 0);
 	EQUALS(boatCount, 0);
 
@@ -45,7 +50,9 @@ int test_BoatRegistry_runBasic()
 	EQUALS(BoatRegistry_OK, rc);
 
 	// 1 boat
-	entry = BoatRegistry_getAllBoats(&boatCount);
+	iterator = sailnavsim_rustlib_boatregistry_get_boats_iterator(BoatRegistry_registry(), &boatCount);
+	entry = sailnavsim_rustlib_boatregistry_boats_iterator_get_next(iterator);
+	sailnavsim_rustlib_boatregistry_free_boats_iterator(iterator);
 	IS_FALSE(entry == 0);
 	EQUALS(boatCount, 1);
 
@@ -74,7 +81,9 @@ int test_BoatRegistry_runBasic()
 	IS_TRUE(b == 0);
 
 	// No boats
-	entry = BoatRegistry_getAllBoats(&boatCount);
+	iterator = sailnavsim_rustlib_boatregistry_get_boats_iterator(BoatRegistry_registry(), &boatCount);
+	entry = sailnavsim_rustlib_boatregistry_boats_iterator_get_next(iterator);
+	sailnavsim_rustlib_boatregistry_free_boats_iterator(iterator);
 	IS_TRUE(entry == 0);
 	EQUALS(boatCount, 0);
 
@@ -85,7 +94,9 @@ int test_BoatRegistry_runBasic()
 	EQUALS(BoatRegistry_OK, rc);
 
 	// 1 boat
-	entry = BoatRegistry_getAllBoats(&boatCount);
+	iterator = sailnavsim_rustlib_boatregistry_get_boats_iterator(BoatRegistry_registry(), &boatCount);
+	entry = sailnavsim_rustlib_boatregistry_boats_iterator_get_next(iterator);
+	sailnavsim_rustlib_boatregistry_free_boats_iterator(iterator);
 	IS_FALSE(entry == 0);
 	EQUALS(boatCount, 1);
 
@@ -96,7 +107,9 @@ int test_BoatRegistry_runBasic()
 	free(b);
 
 	// Still 1 boat
-	entry = BoatRegistry_getAllBoats(&boatCount);
+	iterator = sailnavsim_rustlib_boatregistry_get_boats_iterator(BoatRegistry_registry(), &boatCount);
+	entry = sailnavsim_rustlib_boatregistry_boats_iterator_get_next(iterator);
+	sailnavsim_rustlib_boatregistry_free_boats_iterator(iterator);
 	IS_FALSE(entry == 0);
 	EQUALS(boatCount, 1);
 
@@ -113,7 +126,9 @@ int test_BoatRegistry_runBasic()
 	EQUALS(BoatRegistry_OK, rc);
 
 	// 2 boats now
-	entry = BoatRegistry_getAllBoats(&boatCount);
+	iterator = sailnavsim_rustlib_boatregistry_get_boats_iterator(BoatRegistry_registry(), &boatCount);
+	entry = sailnavsim_rustlib_boatregistry_boats_iterator_get_next(iterator);
+	sailnavsim_rustlib_boatregistry_free_boats_iterator(iterator);
 	IS_FALSE(entry == 0);
 	EQUALS(boatCount, 2);
 
@@ -131,7 +146,9 @@ int test_BoatRegistry_runBasic()
 	IS_TRUE(b == 0);
 
 	// Still 1 boat
-	entry = BoatRegistry_getAllBoats(&boatCount);
+	iterator = sailnavsim_rustlib_boatregistry_get_boats_iterator(BoatRegistry_registry(), &boatCount);
+	entry = sailnavsim_rustlib_boatregistry_boats_iterator_get_next(iterator);
+	sailnavsim_rustlib_boatregistry_free_boats_iterator(iterator);
 	IS_FALSE(entry == 0);
 	EQUALS(boatCount, 1);
 
@@ -158,7 +175,9 @@ int test_BoatRegistry_runBasic()
 	IS_TRUE(b == 0);
 
 	// No boats
-	entry = BoatRegistry_getAllBoats(&boatCount);
+	iterator = sailnavsim_rustlib_boatregistry_get_boats_iterator(BoatRegistry_registry(), &boatCount);
+	entry = sailnavsim_rustlib_boatregistry_boats_iterator_get_next(iterator);
+	sailnavsim_rustlib_boatregistry_free_boats_iterator(iterator);
 	IS_TRUE(entry == 0);
 	EQUALS(boatCount, 0);
 
@@ -174,6 +193,7 @@ int test_BoatRegistry_runBasicWithGroups()
 {
 	unsigned int boatCount = -1;
 	BoatEntry* entry;
+	void* iterator;
 	int rc;
 
 	rc = BoatRegistry_init();
@@ -181,7 +201,9 @@ int test_BoatRegistry_runBasicWithGroups()
 
 
 	// No boats
-	entry = BoatRegistry_getAllBoats(&boatCount);
+	iterator = sailnavsim_rustlib_boatregistry_get_boats_iterator(BoatRegistry_registry(), &boatCount);
+	entry = sailnavsim_rustlib_boatregistry_boats_iterator_get_next(iterator);
+	sailnavsim_rustlib_boatregistry_free_boats_iterator(iterator);
 	IS_TRUE(entry == 0);
 	EQUALS(boatCount, 0);
 
@@ -191,7 +213,9 @@ int test_BoatRegistry_runBasicWithGroups()
 	EQUALS(BoatRegistry_OK, rc);
 
 	// 1 boat
-	entry = BoatRegistry_getAllBoats(&boatCount);
+	iterator = sailnavsim_rustlib_boatregistry_get_boats_iterator(BoatRegistry_registry(), &boatCount);
+	entry = sailnavsim_rustlib_boatregistry_boats_iterator_get_next(iterator);
+	sailnavsim_rustlib_boatregistry_free_boats_iterator(iterator);
 	IS_FALSE(entry == 0);
 	EQUALS(boatCount, 1);
 
@@ -220,7 +244,9 @@ int test_BoatRegistry_runBasicWithGroups()
 	IS_TRUE(b == 0);
 
 	// No boats
-	entry = BoatRegistry_getAllBoats(&boatCount);
+	iterator = sailnavsim_rustlib_boatregistry_get_boats_iterator(BoatRegistry_registry(), &boatCount);
+	entry = sailnavsim_rustlib_boatregistry_boats_iterator_get_next(iterator);
+	sailnavsim_rustlib_boatregistry_free_boats_iterator(iterator);
 	IS_TRUE(entry == 0);
 	EQUALS(boatCount, 0);
 
@@ -231,7 +257,9 @@ int test_BoatRegistry_runBasicWithGroups()
 	EQUALS(BoatRegistry_OK, rc);
 
 	// 1 boat
-	entry = BoatRegistry_getAllBoats(&boatCount);
+	iterator = sailnavsim_rustlib_boatregistry_get_boats_iterator(BoatRegistry_registry(), &boatCount);
+	entry = sailnavsim_rustlib_boatregistry_boats_iterator_get_next(iterator);
+	sailnavsim_rustlib_boatregistry_free_boats_iterator(iterator);
 	IS_FALSE(entry == 0);
 	EQUALS(boatCount, 1);
 
@@ -242,7 +270,9 @@ int test_BoatRegistry_runBasicWithGroups()
 	free(b);
 
 	// Still 1 boat
-	entry = BoatRegistry_getAllBoats(&boatCount);
+	iterator = sailnavsim_rustlib_boatregistry_get_boats_iterator(BoatRegistry_registry(), &boatCount);
+	entry = sailnavsim_rustlib_boatregistry_boats_iterator_get_next(iterator);
+	sailnavsim_rustlib_boatregistry_free_boats_iterator(iterator);
 	IS_FALSE(entry == 0);
 	EQUALS(boatCount, 1);
 
@@ -259,7 +289,9 @@ int test_BoatRegistry_runBasicWithGroups()
 	EQUALS(BoatRegistry_OK, rc);
 
 	// 2 boats now
-	entry = BoatRegistry_getAllBoats(&boatCount);
+	iterator = sailnavsim_rustlib_boatregistry_get_boats_iterator(BoatRegistry_registry(), &boatCount);
+	entry = sailnavsim_rustlib_boatregistry_boats_iterator_get_next(iterator);
+	sailnavsim_rustlib_boatregistry_free_boats_iterator(iterator);
 	IS_FALSE(entry == 0);
 	EQUALS(boatCount, 2);
 
@@ -277,7 +309,9 @@ int test_BoatRegistry_runBasicWithGroups()
 	IS_TRUE(b == 0);
 
 	// Still 1 boat
-	entry = BoatRegistry_getAllBoats(&boatCount);
+	iterator = sailnavsim_rustlib_boatregistry_get_boats_iterator(BoatRegistry_registry(), &boatCount);
+	entry = sailnavsim_rustlib_boatregistry_boats_iterator_get_next(iterator);
+	sailnavsim_rustlib_boatregistry_free_boats_iterator(iterator);
 	IS_FALSE(entry == 0);
 	EQUALS(boatCount, 1);
 
@@ -304,7 +338,9 @@ int test_BoatRegistry_runBasicWithGroups()
 	IS_TRUE(b == 0);
 
 	// No boats
-	entry = BoatRegistry_getAllBoats(&boatCount);
+	iterator = sailnavsim_rustlib_boatregistry_get_boats_iterator(BoatRegistry_registry(), &boatCount);
+	entry = sailnavsim_rustlib_boatregistry_boats_iterator_get_next(iterator);
+	sailnavsim_rustlib_boatregistry_free_boats_iterator(iterator);
 	IS_TRUE(entry == 0);
 	EQUALS(boatCount, 0);
 
@@ -316,8 +352,8 @@ int test_BoatRegistry_runBasicWithGroups()
 }
 
 
-#define LOAD_BOAT_COUNT_MAX (10000)
-#define LOAD_ITERATIONS (10000)
+#define LOAD_BOAT_COUNT_MAX (2500)
+#define LOAD_ITERATIONS (2500)
 
 static int verifyLoadBoatRegistry(const bool* boatList, bool withGroups);
 static int verifyBoatsInGroupResponse(const bool* boatList, const char* groupName, const char* resp);
@@ -413,7 +449,8 @@ int test_BoatRegistry_runLoad()
 		}
 
 		// Boat count must equal successful adds minus successful removes.
-		BoatRegistry_getAllBoats(&boatCount);
+		void* iterator = sailnavsim_rustlib_boatregistry_get_boats_iterator(BoatRegistry_registry(), &boatCount);
+		sailnavsim_rustlib_boatregistry_free_boats_iterator(iterator);
 		EQUALS(addOk - removeOk, (int)boatCount);
 	}
 
@@ -440,7 +477,9 @@ int test_BoatRegistry_runLoad()
 		}
 	}
 
-	BoatEntry* entry = BoatRegistry_getAllBoats(&boatCount);
+	void* iterator = sailnavsim_rustlib_boatregistry_get_boats_iterator(BoatRegistry_registry(), &boatCount);
+	BoatEntry* entry = sailnavsim_rustlib_boatregistry_boats_iterator_get_next(iterator);
+	sailnavsim_rustlib_boatregistry_free_boats_iterator(iterator);
 	EQUALS(0, boatCount);
 	IS_TRUE(entry == 0);
 
@@ -484,7 +523,8 @@ static int verifyLoadBoatRegistry(const bool* boatList, bool withGroups)
 
 	// Get entries, and check boat count.
 	unsigned int boatCount;
-	BoatEntry* entry = BoatRegistry_getAllBoats(&boatCount);
+	void* iterator = sailnavsim_rustlib_boatregistry_get_boats_iterator(BoatRegistry_registry(), &boatCount);
+	BoatEntry* entry = sailnavsim_rustlib_boatregistry_boats_iterator_get_next(iterator);
 	if (count == 0)
 	{
 		IS_TRUE(entry == 0);
@@ -507,8 +547,10 @@ static int verifyLoadBoatRegistry(const bool* boatList, bool withGroups)
 		EQUALS_DBL(entry->boat->pos.lat, getBoatLatForR(boatNum));
 		EQUALS_DBL(entry->boat->pos.lon, getBoatLonForR(boatNum));
 
-		entry = entry->next;
+		entry = sailnavsim_rustlib_boatregistry_boats_iterator_get_next(iterator);
 	}
+
+	sailnavsim_rustlib_boatregistry_free_boats_iterator(iterator);
 
 	// Ensure that the list of boats from entry iteration matches list from caller.
 	for (unsigned int i = 0; i < LOAD_BOAT_COUNT_MAX; i++)
@@ -646,7 +688,8 @@ int test_BoatRegistry_runLoadWithBigGroups()
 		}
 
 		// Boat count must equal successful adds minus successful removes.
-		BoatRegistry_getAllBoats(&boatCount);
+		void* iterator = sailnavsim_rustlib_boatregistry_get_boats_iterator(BoatRegistry_registry(), &boatCount);
+		sailnavsim_rustlib_boatregistry_free_boats_iterator(iterator);
 		EQUALS(addOk - removeOk, (int)boatCount);
 	}
 
@@ -673,7 +716,9 @@ int test_BoatRegistry_runLoadWithBigGroups()
 		}
 	}
 
-	BoatEntry* entry = BoatRegistry_getAllBoats(&boatCount);
+	void* iterator = sailnavsim_rustlib_boatregistry_get_boats_iterator(BoatRegistry_registry(), &boatCount);
+	BoatEntry* entry = sailnavsim_rustlib_boatregistry_boats_iterator_get_next(iterator);
+	sailnavsim_rustlib_boatregistry_free_boats_iterator(iterator);
 	EQUALS(0, boatCount);
 	IS_TRUE(entry == 0);
 
@@ -687,8 +732,8 @@ int test_BoatRegistry_runLoadWithBigGroups()
 
 static int verifyBoatsInGroupResponse(const bool* boatList, const char* groupName, const char* resp)
 {
-	bool localBoatList[100];
-	memset(localBoatList, 0, 100 * sizeof(bool));
+	bool localBoatList[LOAD_BOAT_COUNT_MAX / 100];
+	memset(localBoatList, 0, (LOAD_BOAT_COUNT_MAX / 100) * sizeof(bool));
 
 	const int groupNum = atoi(groupName + 5);
 
@@ -720,7 +765,7 @@ static int verifyBoatsInGroupResponse(const bool* boatList, const char* groupNam
 		u = strtok_r(0, ",", &t);
 	}
 
-	for (int i = 0; i < 100; i++)
+	for (int i = 0; i < LOAD_BOAT_COUNT_MAX / 100; i++)
 	{
 		EQUALS(boatList[i * 100 + groupNum], localBoatList[i]);
 	}

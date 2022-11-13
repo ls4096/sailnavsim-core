@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2021 ls4096 <ls4096@8bitbyte.ca>
+ * Copyright (C) 2021-2022 ls4096 <ls4096@8bitbyte.ca>
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Affero General Public License as published by
@@ -19,7 +19,8 @@ mod boat_registry;
 use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_void};
 
-use boat_registry::BoatRegistry;
+use boat_registry::{ BoatRegistry, BoatRegistryIter };
+
 
 #[no_mangle]
 pub extern fn sailnavsim_rustlib_boatregistry_new() -> *mut c_void {
@@ -32,6 +33,126 @@ pub extern fn sailnavsim_rustlib_boatregistry_new() -> *mut c_void {
 pub unsafe extern fn sailnavsim_rustlib_boatregistry_free(ptr_raw: *mut c_void) {
     let _ptr = Box::from_raw(ptr_raw as *mut BoatRegistry);
 }
+
+
+#[no_mangle]
+pub extern fn sailnavsim_rustlib_boatregistry_add_boat_entry(boat_registry_raw: *mut c_void, boat_entry: *mut c_void, boat_name_raw: *const c_char) -> i32 {
+    let mut boat_registry = unsafe {
+        Box::from_raw(boat_registry_raw as *mut BoatRegistry)
+    };
+
+    let boat_name = unsafe {
+        match CStr::from_ptr(boat_name_raw).to_str() {
+            Ok(s) => String::from(s),
+            Err(_) => {
+                return -1;
+            }
+        }
+    };
+
+    let result = match boat_registry.add_boat(boat_entry, boat_name) {
+        true => 0,
+        false => -2,
+    };
+
+    Box::into_raw(boat_registry);
+    result
+}
+
+#[no_mangle]
+pub extern fn sailnavsim_rustlib_boatregistry_get_boat_entry(boat_registry_raw: *mut c_void, boat_name_raw: *const c_char) -> *mut c_void {
+    let mut boat_registry = unsafe {
+        Box::from_raw(boat_registry_raw as *mut BoatRegistry)
+    };
+
+    let boat_name = unsafe {
+        match CStr::from_ptr(boat_name_raw).to_str() {
+            Ok(s) => String::from(s),
+            Err(_) => {
+                return 0 as *mut c_void;
+            }
+        }
+    };
+
+    let result = boat_registry.get_boat(&boat_name);
+
+    Box::into_raw(boat_registry);
+    result
+}
+
+#[no_mangle]
+pub extern fn sailnavsim_rustlib_boatregistry_remove_boat_entry(boat_registry_raw: *mut c_void, boat_name_raw: *const c_char) -> *mut c_void {
+    let mut boat_registry = unsafe {
+        Box::from_raw(boat_registry_raw as *mut BoatRegistry)
+    };
+
+    let boat_name = unsafe {
+        match CStr::from_ptr(boat_name_raw).to_str() {
+            Ok(s) => String::from(s),
+            Err(_) => {
+                return 0 as *mut c_void;
+            }
+        }
+    };
+
+    let result = boat_registry.remove_boat(&boat_name);
+
+    Box::into_raw(boat_registry);
+    result
+}
+
+
+#[no_mangle]
+pub extern fn sailnavsim_rustlib_boatregistry_get_boats_iterator(boat_registry_raw: *mut c_void, boat_count_raw: *mut u32) -> *mut c_void {
+    let boat_registry = unsafe {
+        Box::from_raw(boat_registry_raw as *mut BoatRegistry)
+    };
+
+    let iter = boat_registry.get_boats_iterator();
+
+    if boat_count_raw != 0 as *mut u32 {
+        unsafe {
+            *boat_count_raw = iter.count() as u32;
+        }
+    }
+
+    let iter_ptr = Box::into_raw(Box::new(iter)) as *mut c_void;
+    Box::into_raw(boat_registry);
+    iter_ptr
+}
+
+#[no_mangle]
+pub extern fn sailnavsim_rustlib_boatregistry_boats_iterator_get_next(iter_raw: *mut c_void) -> *mut c_void {
+    let mut iter = unsafe {
+        Box::from_raw(iter_raw as *mut BoatRegistryIter)
+    };
+
+    let next_boat = iter.next();
+
+    Box::into_raw(iter);
+    next_boat
+}
+
+#[no_mangle]
+pub extern fn sailnavsim_rustlib_boatregistry_boats_iterator_has_next(iter_raw: *mut c_void) -> i32 {
+    let iter = unsafe {
+        Box::from_raw(iter_raw as *mut BoatRegistryIter)
+    };
+
+    let result = match iter.has_next() {
+        true => 1,
+        false => 0,
+    };
+
+    Box::into_raw(iter);
+    result
+}
+
+#[no_mangle]
+pub unsafe extern fn sailnavsim_rustlib_boatregistry_free_boats_iterator(iter_raw: *mut c_void) {
+    let _to_free = Box::from_raw(iter_raw as *mut BoatRegistryIter);
+}
+
 
 #[no_mangle]
 pub extern fn sailnavsim_rustlib_boatregistry_group_add_boat(boat_registry_raw: *mut c_void, group_raw: *const c_char, boat_raw: *const c_char, boat_altname_raw: *const c_char) -> i32 {
@@ -107,6 +228,7 @@ pub extern fn sailnavsim_rustlib_boatregistry_group_remove_boat(boat_registry_ra
 
     Box::into_raw(boat_registry);
 }
+
 
 #[no_mangle]
 pub extern fn sailnavsim_rustlib_boatregistry_produce_group_membership_response(boat_registry_raw: *mut c_void, group_raw: *const c_char) -> *mut c_char {

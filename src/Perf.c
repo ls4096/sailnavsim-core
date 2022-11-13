@@ -30,6 +30,8 @@
 #include <proteus/Ocean.h>
 #include <proteus/Wave.h>
 
+#include <sailnavsim_rustlib.h>
+
 #include "Perf.h"
 
 #include "BoatRegistry.h"
@@ -320,7 +322,12 @@ static int runRemoveAllBoats(bool expectNullBoats)
 	PERF_CLOCK_INIT();
 
 	unsigned int boatCount;
-	BoatEntry* boatEntry = BoatRegistry_getAllBoats(&boatCount);
+	void* iterator;
+	BoatEntry* boatEntry;
+
+	iterator = sailnavsim_rustlib_boatregistry_get_boats_iterator(BoatRegistry_registry(), &boatCount);
+	boatEntry = sailnavsim_rustlib_boatregistry_boats_iterator_get_next(iterator);
+
 	char** boatNames = malloc(boatCount * sizeof(char*));
 	for (unsigned int i = 0; i < boatCount; i++)
 	{
@@ -331,13 +338,14 @@ static int runRemoveAllBoats(bool expectNullBoats)
 		}
 
 		boatNames[i] = strdup(boatEntry->name);
-		boatEntry = boatEntry->next;
+		boatEntry = sailnavsim_rustlib_boatregistry_boats_iterator_get_next(iterator);
 	}
 	if (boatEntry != 0)
 	{
 		ERRLOG("Unexpected non-null boat entry item!");
 		return -1;
 	}
+	sailnavsim_rustlib_boatregistry_free_boats_iterator(iterator);
 
 	PERF_CLOCK_RESET();
 	for (unsigned int i = 0; i < boatCount; i++)
@@ -357,7 +365,11 @@ static int runRemoveAllBoats(bool expectNullBoats)
 	PERF_CLOCK_MEASURE();
 
 	unsigned int boatCountAfter;
-	boatEntry = BoatRegistry_getAllBoats(&boatCountAfter);
+
+	iterator = sailnavsim_rustlib_boatregistry_get_boats_iterator(BoatRegistry_registry(), &boatCountAfter);
+	boatEntry = sailnavsim_rustlib_boatregistry_boats_iterator_get_next(iterator);
+	sailnavsim_rustlib_boatregistry_free_boats_iterator(iterator);
+
 	if (boatEntry != 0 || boatCountAfter != 0)
 	{
 		ERRLOG("Boat entry returned or count after removing all entries is non-zero!");
@@ -462,7 +474,8 @@ static int runNetServerRequests(int netServerWriteFd, Perf_CommandHandlerFunc co
 	printf("NetServer \"get wave height\" requests per second: %.1fk\n", PERF_CLOCK_KIPS);
 
 
-	const BoatEntry* firstBoatEntry = BoatRegistry_getAllBoats(0);
+	void* iterator = sailnavsim_rustlib_boatregistry_get_boats_iterator(BoatRegistry_registry(), 0);
+	const BoatEntry* firstBoatEntry = sailnavsim_rustlib_boatregistry_boats_iterator_get_next(iterator);
 	const BoatEntry* boatEntry;
 
 
@@ -474,9 +487,9 @@ static int runNetServerRequests(int netServerWriteFd, Perf_CommandHandlerFunc co
 		char reqStr[REQ_STR_BUF_SIZE];
 		snprintf(reqStr, REQ_STR_BUF_SIZE, "bd,%s", boatEntry->name);
 		NetServer_handleRequest(netServerWriteFd, reqStr);
-		if (boatEntry->next)
+		if (1 == sailnavsim_rustlib_boatregistry_boats_iterator_has_next(iterator))
 		{
-			boatEntry = boatEntry->next;
+			boatEntry = sailnavsim_rustlib_boatregistry_boats_iterator_get_next(iterator);
 		}
 		else
 		{
@@ -485,6 +498,11 @@ static int runNetServerRequests(int netServerWriteFd, Perf_CommandHandlerFunc co
 	}
 	PERF_CLOCK_MEASURE();
 	printf("NetServer \"get boat data\" requests per second: %.1fk\n", PERF_CLOCK_KIPS);
+	sailnavsim_rustlib_boatregistry_free_boats_iterator(iterator);
+
+
+	iterator = sailnavsim_rustlib_boatregistry_get_boats_iterator(BoatRegistry_registry(), 0);
+	firstBoatEntry = sailnavsim_rustlib_boatregistry_boats_iterator_get_next(iterator);
 
 
 	// "Get boat group members" performance
@@ -495,9 +513,9 @@ static int runNetServerRequests(int netServerWriteFd, Perf_CommandHandlerFunc co
 		char reqStr[REQ_STR_BUF_SIZE];
 		snprintf(reqStr, REQ_STR_BUF_SIZE, "boatgroupmembers,%s", boatEntry->name);
 		NetServer_handleRequest(netServerWriteFd, reqStr);
-		if (boatEntry->next)
+		if (1 == sailnavsim_rustlib_boatregistry_boats_iterator_has_next(iterator))
 		{
-			boatEntry = boatEntry->next;
+			boatEntry = sailnavsim_rustlib_boatregistry_boats_iterator_get_next(iterator);
 		}
 		else
 		{
@@ -506,6 +524,7 @@ static int runNetServerRequests(int netServerWriteFd, Perf_CommandHandlerFunc co
 	}
 	PERF_CLOCK_MEASURE();
 	printf("NetServer \"get boat group members\" requests per second: %.1fk\n", PERF_CLOCK_KIPS);
+	sailnavsim_rustlib_boatregistry_free_boats_iterator(iterator);
 
 
 	if (0 != runRemoveAllBoats(false))

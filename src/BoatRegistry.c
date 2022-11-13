@@ -26,33 +26,12 @@
 
 #define ERRLOG_ID "BoatRegistry"
 
-
-static BoatEntry* _first = 0;
-static BoatEntry* _last = 0;
-static unsigned int _boatCount = 0;
-
 static pthread_rwlock_t _lock = PTHREAD_RWLOCK_INITIALIZER;
 
 static void* _rustlibRegistry = 0;
 
 
-static int hashName(const char* name);
 static BoatEntry* findBoatEntry(const char* name);
-
-
-typedef struct BoatEntryEntry BoatEntryEntry;
-
-struct BoatEntryEntry
-{
-	BoatEntry* e;
-	BoatEntryEntry* next;
-};
-
-#define BUCKET_BITS (14)
-#define BUCKET_COUNT (1 << BUCKET_BITS)
-#define BUCKET_MASK (BUCKET_COUNT - 1)
-
-static BoatEntryEntry* _buckets[BUCKET_COUNT] = { 0 };
 
 
 int BoatRegistry_init()
@@ -69,6 +48,12 @@ void BoatRegistry_destroy()
 		_rustlibRegistry = 0;
 	}
 }
+
+void* BoatRegistry_registry()
+{
+	return _rustlibRegistry;
+}
+
 
 int BoatRegistry_add(Boat* boat, const char* name, const char* group, const char* boatAltName)
 {
@@ -110,72 +95,48 @@ int BoatRegistry_add(Boat* boat, const char* name, const char* group, const char
 
 	newEntry->boat = boat;
 
-	newEntry->next = 0;
-	newEntry->prev = _last;
+	int rc;
 
-	if (!_first)
+	if (0 != (rc = sailnavsim_rustlib_boatregistry_add_boat_entry(_rustlibRegistry, newEntry, name)))
 	{
-		_first = newEntry;
-	}
-	else
-	{
-		_last->next = newEntry;
-	}
+		ERRLOG1("Failed to add boat to rustlib registry! rc=%d", rc);
 
-	_last = newEntry;
-
-
-	const int bucket = hashName(name);
-
-	BoatEntryEntry* newEntryEntry = malloc(sizeof(BoatEntryEntry));
-	if (!newEntryEntry)
-	{
-		ERRLOG("Failed to alloc BoatEntryEntry!");
-		free(newEntry);
 		free(newEntry->name);
 		if (newEntry->group)
 		{
 			free(newEntry->group);
 		}
+		free(newEntry);
+
 		return BoatRegistry_FAILED;
 	}
 
-	int rc;
 	if (group && (0 != (rc = sailnavsim_rustlib_boatregistry_group_add_boat(_rustlibRegistry, group, name, boatAltName))))
 	{
-		ERRLOG1("Failed to add boat to group! rc=", rc);
-		free(newEntry);
+		ERRLOG1("Failed to add boat to group! rc=%d", rc);
+
+		BoatEntry* removedEntry = sailnavsim_rustlib_boatregistry_remove_boat_entry(_rustlibRegistry, name);
+		if (removedEntry != newEntry)
+		{
+			ERRLOG("Unexpected unequal removed BoatEntry compared to local BoatEntry!");
+		}
+
 		free(newEntry->name);
 		if (newEntry->group)
 		{
 			free(newEntry->group);
 		}
-		free(newEntryEntry);
+		free(newEntry);
+
 		return BoatRegistry_FAILED;
 	}
 
-	newEntryEntry->e = newEntry;
-	newEntryEntry->next = 0;
-
-	if (!_buckets[bucket])
-	{
-		_buckets[bucket] = newEntryEntry;
-	}
-	else
-	{
-		newEntryEntry->next = _buckets[bucket];
-		_buckets[bucket] = newEntryEntry;
-	}
-
-
-	_boatCount++;
 	return BoatRegistry_OK;
 }
 
 Boat* BoatRegistry_get(const char* name)
 {
 	const BoatEntry* e = findBoatEntry(name);
-
 	return (e != 0) ? e->boat : 0;
 }
 
@@ -186,81 +147,25 @@ const BoatEntry* BoatRegistry_getBoatEntry(const char* name)
 
 Boat* BoatRegistry_remove(const char* name)
 {
-	const int bucket = hashName(name);
-	BoatEntryEntry* bee = _buckets[bucket];
-
-	const BoatEntryEntry* const first = bee;
-	BoatEntryEntry* last = 0;
-
-	while (bee)
+	BoatEntry* e = sailnavsim_rustlib_boatregistry_remove_boat_entry(_rustlibRegistry, name);
+	if (!e)
 	{
-		if (0 == strcmp(name, bee->e->name))
-		{
-			if (bee->e->group)
-			{
-				sailnavsim_rustlib_boatregistry_group_remove_boat(_rustlibRegistry, bee->e->group, name);
-			}
-
-			if (bee == first)
-			{
-				_buckets[bucket] = bee->next;
-			}
-			else
-			{
-				last->next = bee->next;
-			}
-
-			BoatEntry* e = bee->e;
-
-			if (e->prev)
-			{
-				e->prev->next = e->next;
-			}
-			else
-			{
-				_first = e->next;
-			}
-
-			if (e->next)
-			{
-				e->next->prev = e->prev;
-			}
-			else
-			{
-				_last = e->prev;
-			}
-
-			Boat* boat = e->boat;
-
-			free(bee);
-
-			free(e->name);
-			if (e->group)
-			{
-				free(e->group);
-			}
-			free(e);
-
-			_boatCount--;
-			return boat;
-		}
-
-		last = bee;
-		bee = bee->next;
+		return 0;
 	}
 
-	return 0;
-}
+	Boat* boat = e->boat;
 
-BoatEntry* BoatRegistry_getAllBoats(unsigned int* boatCount)
-{
-	if (boatCount)
+	free(e->name);
+	if (e->group)
 	{
-		*boatCount = _boatCount;
+		sailnavsim_rustlib_boatregistry_group_remove_boat(_rustlibRegistry, e->group, name);
+		free(e->group);
 	}
+	free(e);
 
-	return _first;
+	return boat;
 }
+
 
 const char* BoatRegistry_getBoatsInGroupResponse(const char* group)
 {
@@ -271,6 +176,7 @@ void BoatRegistry_freeBoatsInGroupResponse(const char* resp)
 {
 	sailnavsim_rustlib_boatregistry_free_group_membership_response((char*)resp);
 }
+
 
 int BoatRegistry_rdlock()
 {
@@ -306,35 +212,7 @@ int BoatRegistry_unlock()
 }
 
 
-// A fast and good enough hash function for typical boat "names" for our purposes
-static int hashName(const char* name)
-{
-	static const int PRIMES[] = { 2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53 };
-
-	unsigned int n = 1;
-
-	for (const char* c = name; *c != 0; c++)
-	{
-		n *= PRIMES[((unsigned int)*c) & 0x0f];
-		n >>= 1;
-	}
-
-	return (n & BUCKET_MASK);
-}
-
 static BoatEntry* findBoatEntry(const char* name)
 {
-	unsigned int bucket = hashName(name);
-	const BoatEntryEntry* bee = _buckets[bucket];
-	while (bee)
-	{
-		if (strcmp(name, bee->e->name) == 0)
-		{
-			return bee->e;
-		}
-
-		bee = bee->next;
-	}
-
-	return 0;
+	return sailnavsim_rustlib_boatregistry_get_boat_entry(_rustlibRegistry, name);
 }

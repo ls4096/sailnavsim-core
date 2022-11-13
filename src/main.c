@@ -33,6 +33,8 @@
 #include <proteus/Wave.h>
 #include <proteus/Weather.h>
 
+#include <sailnavsim_rustlib.h>
+
 #include "Boat.h"
 #include "BoatInitParser.h"
 #include "BoatRegistry.h"
@@ -84,7 +86,7 @@
 #define PERF_TEST_MAX_BOAT_COUNT (819200)
 
 
-static const char* VERSION_STRING = "SailNavSim version 1.15.1 (" __DATE__ " " __TIME__ ")";
+static const char* VERSION_STRING = "SailNavSim version 1.16.0 (" __DATE__ " " __TIME__ ")";
 
 
 static int parseArgs(int argc, char** argv);
@@ -258,7 +260,8 @@ int main(int argc, char** argv)
 		time_t curTime = time(0);
 
 		unsigned int boatCount;
-		BoatEntry* boats = BoatRegistry_getAllBoats(&boatCount);
+		void* iterator = sailnavsim_rustlib_boatregistry_get_boats_iterator(BoatRegistry_registry(), &boatCount);
+		BoatEntry* boats = sailnavsim_rustlib_boatregistry_boats_iterator_get_next(iterator);
 
 		// Process all boats.
 		if (boatCount > 0)
@@ -375,7 +378,7 @@ int main(int argc, char** argv)
 					ilog++;
 				}
 
-				e = e->next;
+				e = sailnavsim_rustlib_boatregistry_boats_iterator_get_next(iterator);
 			}
 
 			if (BoatRegistry_OK != BoatRegistry_unlock())
@@ -415,6 +418,7 @@ int main(int argc, char** argv)
 				Logger_writeLogs(logEntries, boatCount, csEntries, totalSights);
 			}
 		}
+		sailnavsim_rustlib_boatregistry_free_boats_iterator(iterator);
 
 
 		// If this is a performance test run, then handle things a bit differently, take some measurements, and loop back early.
@@ -424,7 +428,8 @@ int main(int argc, char** argv)
 
 			if (perfIter == 0)
 			{
-				BoatRegistry_getAllBoats(&currentBoatCount);
+				void* iterator = sailnavsim_rustlib_boatregistry_get_boats_iterator(BoatRegistry_registry(), &currentBoatCount);
+				sailnavsim_rustlib_boatregistry_free_boats_iterator(iterator);
 
 				if (perfFirst)
 				{
@@ -459,7 +464,8 @@ int main(int argc, char** argv)
 				if (perfIter >= (PERF_TEST_ITERATIONS_WARMUP + PERF_TEST_ITERATIONS_MEASURE) * perfTestIterationsFactor)
 				{
 					// We're done this set, so print result and proceed to next set of iterations.
-					BoatRegistry_getAllBoats(&currentBoatCount);
+					void* iterator = sailnavsim_rustlib_boatregistry_get_boats_iterator(BoatRegistry_registry(), &currentBoatCount);
+					sailnavsim_rustlib_boatregistry_free_boats_iterator(iterator);
 
 					const long bips = PERF_TEST_ITERATIONS_MEASURE * perfTestIterationsFactor * currentBoatCount * 1000000000L / perfTotalNs;
 
