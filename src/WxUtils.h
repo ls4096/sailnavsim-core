@@ -17,8 +17,6 @@
 #ifndef _WxUtils_h_
 #define _WxUtils_h_
 
-#include <stdbool.h>
-
 #include <proteus/GeoVec.h>
 #include <proteus/Weather.h>
 

@@ -21,8 +21,7 @@ TESTS_OBJS = \
 	tests/test_BoatRegistry.o \
 	tests/test_WxUtils.o
 
-LIBPROTEUS_SO = libproteus/libproteus.so
-
+LIBPROTEUS_A = libproteus/libproteus.a
 RUSTLIB_A = rustlib/target/release/libsailnavsim_rustlib.a
 
 SRC_INCLUDES = \
@@ -31,14 +30,13 @@ SRC_INCLUDES = \
 
 SOLIB_DEPS = \
 	-lm \
+	-lz \
 	-ldl \
 	-lpthread \
-	-lsqlite3 \
-	-Llibproteus \
-	-lproteus
+	-lsqlite3
 
 
-$(LIBPROTEUS_SO):
+$(LIBPROTEUS_A):
 	make -C libproteus libproteus
 
 $(RUSTLIB_A):
@@ -50,15 +48,15 @@ $(RUSTLIB_A):
 src/%.o: src/%.c
 	$(CC) -c -Wall -Wextra -O2 -D_GNU_SOURCE $(SRC_INCLUDES) -o $@ $<
 
-sailnavsim: $(OBJS) src/main.o $(LIBPROTEUS_SO) $(RUSTLIB_A)
-	$(CC) -O2 -D_GNU_SOURCE -o sailnavsim src/main.o $(OBJS) $(RUSTLIB_A) $(SOLIB_DEPS)
+sailnavsim: $(OBJS) src/main.o $(LIBPROTEUS_A) $(RUSTLIB_A)
+	$(CC) -O2 -D_GNU_SOURCE -o sailnavsim src/main.o $(OBJS) $(LIBPROTEUS_A) $(RUSTLIB_A) $(SOLIB_DEPS)
 
 
 tests/%.o: tests/%.c
 	$(CC) -c -Wall -Wextra -O2 -D_GNU_SOURCE -Isrc $(SRC_INCLUDES) -o $@ $<
 
-sailnavsim_tests: $(TESTS_OBJS) $(OBJS) tests/tests_main.o $(LIBPROTEUS_SO) $(RUSTLIB_A)
-	$(CC) -O2 -D_GNU_SOURCE -o sailnavsim_tests tests/tests_main.o $(TESTS_OBJS) $(OBJS) $(RUSTLIB_A) $(SOLIB_DEPS)
+sailnavsim_tests: $(TESTS_OBJS) $(OBJS) tests/tests_main.o $(LIBPROTEUS_A) $(RUSTLIB_A)
+	$(CC) -O2 -D_GNU_SOURCE -o sailnavsim_tests tests/tests_main.o $(TESTS_OBJS) $(OBJS) $(LIBPROTEUS_A) $(RUSTLIB_A) $(SOLIB_DEPS)
 
 
 clean:

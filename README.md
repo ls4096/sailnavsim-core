@@ -30,15 +30,15 @@ Create the named pipe to be able to send the simulator commands:
 
 Basic run:
 
-`LD_LIBRARY_PATH=./libproteus ./sailnavsim`
+`./sailnavsim`
 
 With optional TCP server listening on localhost:$PORT (for weather data, live boat info, etc.):
 
-`LD_LIBRARY_PATH=./libproteus ./sailnavsim --netport $PORT`
+`./sailnavsim --netport $PORT`
 
 Performance test run:
 
-`LD_LIBRARY_PATH=./libproteus ./sailnavsim --perf`
+`./sailnavsim --perf`
 
 ### Add a boat
 
@@ -60,4 +60,4 @@ Performance test run:
 
 `make tests`
 
-`./run_tests.sh`
+`./sailnavsim_tests`
