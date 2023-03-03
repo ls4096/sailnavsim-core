@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2020 ls4096 <ls4096@8bitbyte.ca>
+ * Copyright (C) 2020-2023 ls4096 <ls4096@8bitbyte.ca>
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Affero General Public License as published by
@@ -165,13 +165,15 @@ static BoatInitEntry* getNextSql()
 		}
 		else if (src == SQLITE_ROW)
 		{
-			const char* boatName = (const char*) sqlite3_column_text(_sqlStmtBoat, 0);
-			const char* race = (const char*) sqlite3_column_text(_sqlStmtBoat, 1);
-			const double desiredCourse = sqlite3_column_double(_sqlStmtBoat, 2);
-			const int started = sqlite3_column_double(_sqlStmtBoat, 3);
-			const int boatType = sqlite3_column_double(_sqlStmtBoat, 4);
-			const int boatFlags = sqlite3_column_double(_sqlStmtBoat, 5);
-			const char* boatFriendlyName = (const char*) sqlite3_column_text(_sqlStmtBoat, 6);
+			int n = 0;
+
+			const char* boatName = (const char*) sqlite3_column_text(_sqlStmtBoat, n++);
+			const char* race = (const char*) sqlite3_column_text(_sqlStmtBoat, n++);
+			const double desiredCourse = sqlite3_column_double(_sqlStmtBoat, n++);
+			const int started = sqlite3_column_int(_sqlStmtBoat, n++);
+			const int boatType = sqlite3_column_int(_sqlStmtBoat, n++);
+			const int boatFlags = sqlite3_column_int(_sqlStmtBoat, n++);
+			const char* boatFriendlyName = (const char*) sqlite3_column_text(_sqlStmtBoat, n++);
 
 			src = sqlite3_reset(_sqlStmtBoatLog);
 			if (src != SQLITE_OK)
