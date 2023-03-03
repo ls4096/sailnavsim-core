@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2021-2022 ls4096 <ls4096@8bitbyte.ca>
+ * Copyright (C) 2021-2023 ls4096 <ls4096@8bitbyte.ca>
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Affero General Public License as published by
@@ -35,6 +35,7 @@
 #include "BoatRegistry.h"
 #include "Command.h"
 #include "ErrLog.h"
+#include "WxUtils.h"
 
 
 #define ERRLOG_ID "NetServer"
@@ -44,17 +45,21 @@
 
 #define REQ_TYPE_INVALID				(0)
 #define REQ_TYPE_GET_WIND				(1)
-#define REQ_TYPE_GET_WIND_GUST				(2)
-#define REQ_TYPE_GET_OCEAN_CURRENT			(3)
-#define REQ_TYPE_GET_SEA_ICE				(4)
-#define REQ_TYPE_GET_WAVE_HEIGHT			(5)
-#define REQ_TYPE_GET_BOAT_DATA				(6)
-#define REQ_TYPE_GET_BOAT_DATA_NO_CELESTIAL		(7)
-#define REQ_TYPE_BOAT_CMD				(8)
-#define REQ_TYPE_BOAT_GROUP_MEMBERSHIP			(9)
+#define REQ_TYPE_GET_WIND_ADJCUR			(2)
+#define REQ_TYPE_GET_WIND_GUST				(3)
+#define REQ_TYPE_GET_WIND_GUST_ADJCUR			(4)
+#define REQ_TYPE_GET_OCEAN_CURRENT			(5)
+#define REQ_TYPE_GET_SEA_ICE				(6)
+#define REQ_TYPE_GET_WAVE_HEIGHT			(7)
+#define REQ_TYPE_GET_BOAT_DATA				(8)
+#define REQ_TYPE_GET_BOAT_DATA_NO_CELESTIAL		(9)
+#define REQ_TYPE_BOAT_CMD				(10)
+#define REQ_TYPE_BOAT_GROUP_MEMBERSHIP			(11)
 
 static const char* REQ_STR_GET_WIND =			"wind";
+static const char* REQ_STR_GET_WIND_ADJCUR =		"wind_c";
 static const char* REQ_STR_GET_WIND_GUST =		"wind_gust";
+static const char* REQ_STR_GET_WIND_GUST_ADJCUR =	"wind_gust_c";
 static const char* REQ_STR_GET_OCEAN_CURRENT =		"ocean_current";
 static const char* REQ_STR_GET_SEA_ICE =		"sea_ice";
 static const char* REQ_STR_GET_WAVE_HEIGHT =		"wave_height";
@@ -105,9 +110,9 @@ static int getReqType(const char* s);
 static const uint8_t* getReqExpectedValueTypes(int reqType);
 static bool areValuesValidForReqType(int reqType, ReqValue values[REQ_MAX_ARG_COUNT]);
 
-static void populateWindResponse(char* buf, size_t bufSize, proteus_GeoPos* pos, bool gust);
-static void populateOceanResponse(char* buf, size_t bufSize, proteus_GeoPos* pos, bool seaIce);
-static void populateWaveResponse(char* buf, size_t bufSize, proteus_GeoPos* pos);
+static void populateWindResponse(char* buf, size_t bufSize, const proteus_GeoPos* pos, bool gust, bool adjustForCurrent);
+static void populateOceanResponse(char* buf, size_t bufSize, const proteus_GeoPos* pos, bool seaIce);
+static void populateWaveResponse(char* buf, size_t bufSize, const proteus_GeoPos* pos);
 static void populateBoatDataResponse(char* buf, size_t bufSize, const char* key, bool noCelestial);
 static void populateBoatCmdResponse(char* buf, size_t bufSize, char** tok);
 static void populateBoatGroupMembershipResponse(char* buf, size_t bufSize, const char* key);
@@ -220,10 +225,12 @@ int NetServer_handleRequest(int writeFd, char* reqStr)
 	switch (reqType)
 	{
 		case REQ_TYPE_GET_WIND:
-			populateWindResponse(buf, SEND_MSG_BUF_SIZE, &pos, false);
+		case REQ_TYPE_GET_WIND_ADJCUR:
+			populateWindResponse(buf, SEND_MSG_BUF_SIZE, &pos, false, (reqType == REQ_TYPE_GET_WIND_ADJCUR));
 			break;
 		case REQ_TYPE_GET_WIND_GUST:
-			populateWindResponse(buf, SEND_MSG_BUF_SIZE, &pos, true);
+		case REQ_TYPE_GET_WIND_GUST_ADJCUR:
+			populateWindResponse(buf, SEND_MSG_BUF_SIZE, &pos, true, (reqType == REQ_TYPE_GET_WIND_GUST_ADJCUR));
 			break;
 		case REQ_TYPE_GET_OCEAN_CURRENT:
 			populateOceanResponse(buf, SEND_MSG_BUF_SIZE, &pos, false);
@@ -716,9 +723,17 @@ static int getReqType(const char* s)
 	{
 		return REQ_TYPE_GET_WIND;
 	}
+	else if (strcmp(REQ_STR_GET_WIND_ADJCUR, s) == 0)
+	{
+		return REQ_TYPE_GET_WIND_ADJCUR;
+	}
 	else if (strcmp(REQ_STR_GET_WIND_GUST, s) == 0)
 	{
 		return REQ_TYPE_GET_WIND_GUST;
+	}
+	else if (strcmp(REQ_STR_GET_WIND_GUST_ADJCUR, s) == 0)
+	{
+		return REQ_TYPE_GET_WIND_GUST_ADJCUR;
 	}
 	else if (strcmp(REQ_STR_GET_OCEAN_CURRENT, s) == 0)
 	{
@@ -757,7 +772,9 @@ static const uint8_t* getReqExpectedValueTypes(int reqType)
 	switch (reqType)
 	{
 		case REQ_TYPE_GET_WIND:
+		case REQ_TYPE_GET_WIND_ADJCUR:
 		case REQ_TYPE_GET_WIND_GUST:
+		case REQ_TYPE_GET_WIND_GUST_ADJCUR:
 		case REQ_TYPE_GET_OCEAN_CURRENT:
 		case REQ_TYPE_GET_SEA_ICE:
 		case REQ_TYPE_GET_WAVE_HEIGHT:
@@ -777,7 +794,9 @@ static bool areValuesValidForReqType(int reqType, ReqValue values[REQ_MAX_ARG_CO
 	switch (reqType)
 	{
 		case REQ_TYPE_GET_WIND:
+		case REQ_TYPE_GET_WIND_ADJCUR:
 		case REQ_TYPE_GET_WIND_GUST:
+		case REQ_TYPE_GET_WIND_GUST_ADJCUR:
 		case REQ_TYPE_GET_OCEAN_CURRENT:
 		case REQ_TYPE_GET_SEA_ICE:
 		case REQ_TYPE_GET_WAVE_HEIGHT:
@@ -794,20 +813,43 @@ static bool areValuesValidForReqType(int reqType, ReqValue values[REQ_MAX_ARG_CO
 #define INVALID_INTEGER_VALUE (-999)
 #define INVALID_DOUBLE_VALUE (-999.0)
 
-static void populateWindResponse(char* buf, size_t bufSize, proteus_GeoPos* pos, bool gust)
+static void populateWindResponse(char* buf, size_t bufSize, const proteus_GeoPos* pos, bool gust, bool adjustForCurrent)
 {
 	proteus_Weather wx;
 	proteus_Weather_get(pos, &wx, true);
 
-	snprintf(buf, bufSize, "%s,%f,%f,%f,%f\n",
-			gust ? REQ_STR_GET_WIND_GUST : REQ_STR_GET_WIND,
-			pos->lat,
-			pos->lon,
-			wx.wind.angle,
-			gust ? wx.windGust : wx.wind.mag);
+	double gustAngle = wx.wind.angle;
+
+	if (adjustForCurrent)
+	{
+		proteus_OceanData od;
+		if (proteus_Ocean_get(pos, &od))
+		{
+			gustAngle = WxUtils_adjustWindForCurrent(&wx, &od.current);
+		}
+	}
+
+	if (gust)
+	{
+		snprintf(buf, bufSize, "%s,%f,%f,%f,%f\n",
+				adjustForCurrent ? REQ_STR_GET_WIND_GUST_ADJCUR : REQ_STR_GET_WIND_GUST,
+				pos->lat,
+				pos->lon,
+				gustAngle,
+				wx.windGust);
+	}
+	else
+	{
+		snprintf(buf, bufSize, "%s,%f,%f,%f,%f\n",
+				adjustForCurrent ? REQ_STR_GET_WIND_ADJCUR : REQ_STR_GET_WIND,
+				pos->lat,
+				pos->lon,
+				wx.wind.angle,
+				wx.wind.mag);
+	}
 }
 
-static void populateOceanResponse(char* buf, size_t bufSize, proteus_GeoPos* pos, bool seaIce)
+static void populateOceanResponse(char* buf, size_t bufSize, const proteus_GeoPos* pos, bool seaIce)
 {
 	proteus_OceanData od;
 	const bool valid = proteus_Ocean_get(pos, &od);
@@ -831,7 +873,7 @@ static void populateOceanResponse(char* buf, size_t bufSize, proteus_GeoPos* pos
 	}
 }
 
-static void populateWaveResponse(char* buf, size_t bufSize, proteus_GeoPos* pos)
+static void populateWaveResponse(char* buf, size_t bufSize, const proteus_GeoPos* pos)
 {
 	proteus_WaveData wd;
 	const bool valid = proteus_Wave_get(pos, &wd);

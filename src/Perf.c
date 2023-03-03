@@ -422,6 +422,19 @@ static int runNetServerRequests(int netServerWriteFd, Perf_CommandHandlerFunc co
 	printf("NetServer \"get wind\" requests per second: %.1fk\n", PERF_CLOCK_KIPS);
 
 
+	// "Get wind current adjusted" performance
+	PERF_CLOCK_RESET();
+	for (unsigned int i = 0; i < ITERATIONS; i++)
+	{
+		char reqStr[REQ_STR_BUF_SIZE];
+		const proteus_GeoPos* pos = positions + (i % POSITION_COUNT);
+		snprintf(reqStr, REQ_STR_BUF_SIZE, "wind_c,%f,%f", pos->lat, pos->lon);
+		NetServer_handleRequest(netServerWriteFd, reqStr);
+	}
+	PERF_CLOCK_MEASURE();
+	printf("NetServer \"get wind current adjusted\" requests per second: %.1fk\n", PERF_CLOCK_KIPS);
+
+
 	// "Get wind gust" performance
 	PERF_CLOCK_RESET();
 	for (unsigned int i = 0; i < ITERATIONS; i++)
@@ -433,6 +446,19 @@ static int runNetServerRequests(int netServerWriteFd, Perf_CommandHandlerFunc co
 	}
 	PERF_CLOCK_MEASURE();
 	printf("NetServer \"get wind gust\" requests per second: %.1fk\n", PERF_CLOCK_KIPS);
+
+
+	// "Get wind gust current adjusted" performance
+	PERF_CLOCK_RESET();
+	for (unsigned int i = 0; i < ITERATIONS; i++)
+	{
+		char reqStr[REQ_STR_BUF_SIZE];
+		const proteus_GeoPos* pos = positions + (i % POSITION_COUNT);
+		snprintf(reqStr, REQ_STR_BUF_SIZE, "wind_gust_c,%f,%f", pos->lat, pos->lon);
+		NetServer_handleRequest(netServerWriteFd, reqStr);
+	}
+	PERF_CLOCK_MEASURE();
+	printf("NetServer \"get wind gust current adjusted\" requests per second: %.1fk\n", PERF_CLOCK_KIPS);
 
 
 	// "Get ocean current" performance
