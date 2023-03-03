@@ -14,10 +14,12 @@ OBJS = \
 	src/GeoUtils.o \
 	src/Logger.o \
 	src/NetServer.o \
-	src/Perf.o
+	src/Perf.o \
+	src/WxUtils.o
 
 TESTS_OBJS = \
-	tests/test_BoatRegistry.o
+	tests/test_BoatRegistry.o \
+	tests/test_WxUtils.o
 
 LIBPROTEUS_SO = libproteus/libproteus.so
 

@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2020-2023 ls4096 <ls4096@8bitbyte.ca>
+ * Copyright (C) 2023 ls4096 <ls4096@8bitbyte.ca>
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Affero General Public License as published by
@@ -14,14 +14,16 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-#ifndef _tests_h_
-#define _tests_h_
+#ifndef _WxUtils_h_
+#define _WxUtils_h_
 
-int test_BoatRegistry_runBasic();
-int test_BoatRegistry_runBasicWithGroups();
-int test_BoatRegistry_runLoad();
-int test_BoatRegistry_runLoadWithBigGroups();
+#include <stdbool.h>
 
-int test_WxUtils();
+#include <proteus/GeoVec.h>
+#include <proteus/Weather.h>
 
-#endif // _tests_h_
+
+double WxUtils_adjustWindForCurrent(proteus_Weather* wx, const proteus_GeoVec* current);
+
+
+#endif // _WxUtils_h_

@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2020-2023 ls4096 <ls4096@8bitbyte.ca>
+ * Copyright (C) 2023 ls4096 <ls4096@8bitbyte.ca>
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Affero General Public License as published by
@@ -14,14 +14,21 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-#ifndef _tests_h_
-#define _tests_h_
+#include "WxUtils.h"
 
-int test_BoatRegistry_runBasic();
-int test_BoatRegistry_runBasicWithGroups();
-int test_BoatRegistry_runLoad();
-int test_BoatRegistry_runLoadWithBigGroups();
 
-int test_WxUtils();
+// Adjusts wind vector and gust value to take into account provided ocean current vector.
+double WxUtils_adjustWindForCurrent(proteus_Weather* wx, const proteus_GeoVec* current)
+{
+	proteus_GeoVec windGust = {
+		.angle = wx->wind.angle,
+		.mag = wx->windGust
+	};
 
-#endif // _tests_h_
+	proteus_GeoVec_add(&wx->wind, current);
+
+	proteus_GeoVec_add(&windGust, current);
+	wx->windGust = windGust.mag;
+
+	return windGust.angle;
+}

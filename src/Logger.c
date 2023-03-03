@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2020-2021 ls4096 <ls4096@8bitbyte.ca>
+ * Copyright (C) 2020-2023 ls4096 <ls4096@8bitbyte.ca>
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Affero General Public License as published by
@@ -37,6 +37,7 @@
 
 #include "Boat.h"
 #include "ErrLog.h"
+#include "WxUtils.h"
 
 
 #define ERRLOG_ID "Logger"
@@ -158,6 +159,13 @@ void Logger_fillLogEntry(Boat* boat, const char* name, time_t t, bool reportVisi
 	proteus_OceanData od;
 	const bool odValid = proteus_Ocean_get(&boat->pos, &od);
 
+	double windGustAngle = wx.wind.angle;
+
+	if (odValid)
+	{
+		windGustAngle = WxUtils_adjustWindForCurrent(&wx, &od.current);
+	}
+
 	proteus_WaveData wd;
 	const bool wdValid = proteus_Wave_get(&boat->pos, &wd);
 
@@ -180,6 +188,7 @@ void Logger_fillLogEntry(Boat* boat, const char* name, time_t t, bool reportVisi
 	log->distanceTravelled = boat->distanceTravelled;
 	log->damage = boat->damage;
 	log->wx = wx;
+	log->windGustAngle = windGustAngle;
 	log->oceanData = od;
 	log->oceanDataValid = odValid;
 	log->waveData = wd;
@@ -390,7 +399,7 @@ static void writeLogsCsv(const LogEntry* const logEntries, unsigned int lCount, 
 
 		if (log->oceanDataValid)
 		{
-			snprintf(logLine, CSV_LOGGER_LINE_BUF_SIZE, "%lu,%.6f,%.6f,%.1f,%.3f,%.1f,%.3f,%.1f,%.3f,%.1f,%.3f,%.1f,%.1f,%.1f,%.1f,%.0f,%.0f,%.2f,%d,%d,%d,%.3f,%.0f,%.1f,%.3f,%.3f,%s,%.3f,%d\n",
+			snprintf(logLine, CSV_LOGGER_LINE_BUF_SIZE, "%lu,%.6f,%.6f,%.1f,%.3f,%.1f,%.3f,%.1f,%.3f,%.1f,%.3f,%.1f,%.1f,%.1f,%.1f,%.0f,%.0f,%.2f,%d,%d,%d,%.3f,%.0f,%.1f,%.3f,%.3f,%.3f,%s,%.3f,%d\n",
 				log->time,
 				log->boatPos.lat,
 				log->boatPos.lon,
@@ -416,6 +425,7 @@ static void writeLogsCsv(const LogEntry* const logEntries, unsigned int lCount, 
 				log->oceanData.ice,
 				log->distanceTravelled,
 				log->damage,
+				log->windGustAngle,
 				log->wx.windGust,
 				waveHeightStr,
 				log->compassMagDec,
@@ -424,7 +434,7 @@ static void writeLogsCsv(const LogEntry* const logEntries, unsigned int lCount, 
 		}
 		else
 		{
-			snprintf(logLine, CSV_LOGGER_LINE_BUF_SIZE, "%lu,%.6f,%.6f,%.1f,%.3f,%.1f,%.3f,%.1f,%.3f,,,,%.1f,%.1f,%.1f,%.0f,%.0f,%.2f,%d,%d,%d,,,%.1f,%.3f,%.3f,%s,%.3f,%d\n",
+			snprintf(logLine, CSV_LOGGER_LINE_BUF_SIZE, "%lu,%.6f,%.6f,%.1f,%.3f,%.1f,%.3f,%.1f,%.3f,,,,%.1f,%.1f,%.1f,%.0f,%.0f,%.2f,%d,%d,%d,,,%.1f,%.3f,%.3f,%.3f,%s,%.3f,%d\n",
 				log->time,
 				log->boatPos.lat,
 				log->boatPos.lon,
@@ -445,6 +455,7 @@ static void writeLogsCsv(const LogEntry* const logEntries, unsigned int lCount, 
 				log->locState,
 				log->distanceTravelled,
 				log->damage,
+				log->windGustAngle,
 				log->wx.windGust,
 				waveHeightStr,
 				log->compassMagDec,
@@ -782,6 +793,12 @@ static void writeLogsSqlBoatLogs(const LogEntry* const logEntries, unsigned int 
 			continue;
 		}
 
+		if (SQLITE_OK != (src = sqlite3_bind_double(_sqlInsertStmtBoatLog, ++n, log->windGustAngle)))
+		{
+			ERRLOG1("Failed to bind wind gust angle! sqlite rc=%d", src);
+			continue;
+		}
+
 
 		if (SQLITE_DONE != (src = sqlite3_step(_sqlInsertStmtBoatLog)))
 		{
@@ -944,7 +961,7 @@ static int setupSql(const char* sqliteDbFilename)
 	}
 
 
-	static const char* BOAT_LOG_INSERT_STMT_STR = "INSERT INTO BoatLog VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);";
+	static const char* BOAT_LOG_INSERT_STMT_STR = "INSERT INTO BoatLog VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);";
 	if (SQLITE_OK != (src = sqlite3_prepare_v2(_sql, BOAT_LOG_INSERT_STMT_STR, strlen(BOAT_LOG_INSERT_STMT_STR) + 1, &_sqlInsertStmtBoatLog, 0)))
 	{
 		ERRLOG1("Failed to prepare BoatLog insert statement. sqlite rc=%d", src);

@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2020-2021 ls4096 <ls4096@8bitbyte.ca>
+ * Copyright (C) 2020-2023 ls4096 <ls4096@8bitbyte.ca>
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Affero General Public License as published by
@@ -28,6 +28,7 @@
 #include "Boat.h"
 
 #include "BoatWindResponse.h"
+#include "WxUtils.h"
 
 
 #define FORBIDDEN_LAT (0.0001)
@@ -151,14 +152,19 @@ void Boat_advance(Boat* b, time_t curTime)
 		}
 	}
 
+	proteus_Weather wx;
+	proteus_Weather_get(&b->pos, &wx, true);
+
 	proteus_OceanData od;
 	const bool oceanDataValid = proteus_Ocean_get(&b->pos, &od);
 
+	if (oceanDataValid)
+	{
+		WxUtils_adjustWindForCurrent(&wx, &od.current);
+	}
+
 	proteus_WaveData wd;
 	const bool waveDataValid = proteus_Wave_get(&b->pos, &wd);
-
-	proteus_Weather wx;
-	proteus_Weather_get(&b->pos, &wx, true);
 
 	if (b->sailsDown)
 	{
@@ -397,6 +403,9 @@ static void updateDamage(Boat* b, double windGust, double windAngle, bool takeDa
 	{
 		proteus_Weather wx;
 		proteus_Weather_get(&b->pos, &wx, true);
+
+		// NOTE: No need to adjust wind for ocean currents here
+		//       since the boat will be "stopped" if provided windGust < 0.0.
 
 		windGust = wx.windGust;
 		windAngle = wx.wind.angle;

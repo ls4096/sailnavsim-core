@@ -47,7 +47,8 @@ CREATE TABLE BoatLog(
 	windGust REAL NOT NULL,
 	waveHeight REAL,
 	compassMagDec REAL NOT NULL,
-	invisibleLog INTEGER NOT NULL
+	invisibleLog INTEGER NOT NULL,
+	windGustAngle REAL
 );
 
 CREATE TABLE CelestialSight(

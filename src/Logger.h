@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2020 ls4096 <ls4096@8bitbyte.ca>
+ * Copyright (C) 2020-2023 ls4096 <ls4096@8bitbyte.ca>
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Affero General Public License as published by
@@ -55,6 +55,7 @@ typedef struct
 
 	// Weather data (including wind)
 	proteus_Weather wx;
+	double windGustAngle;
 
 	// Ocean data
 	proteus_OceanData oceanData;
