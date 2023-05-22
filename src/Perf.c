@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2020-2022 ls4096 <ls4096@8bitbyte.ca>
+ * Copyright (C) 2020-2023 ls4096 <ls4096@8bitbyte.ca>
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Affero General Public License as published by
@@ -551,6 +551,18 @@ static int runNetServerRequests(int netServerWriteFd, Perf_CommandHandlerFunc co
 	PERF_CLOCK_MEASURE();
 	printf("NetServer \"get boat group members\" requests per second: %.1fk\n", PERF_CLOCK_KIPS);
 	sailnavsim_rustlib_boatregistry_free_boats_iterator(iterator);
+
+
+	// "System request counts" performance
+	PERF_CLOCK_RESET();
+	for (unsigned int i = 0; i < ITERATIONS; i++)
+	{
+		char reqStr[REQ_STR_BUF_SIZE];
+		snprintf(reqStr, REQ_STR_BUF_SIZE, "sys_req_counts,");
+		NetServer_handleRequest(netServerWriteFd, reqStr);
+	}
+	PERF_CLOCK_MEASURE();
+	printf("NetServer \"system request counts\" requests per second: %.1fk\n", PERF_CLOCK_KIPS);
 
 
 	if (0 != runRemoveAllBoats(false))

@@ -55,6 +55,8 @@
 #define REQ_TYPE_GET_BOAT_DATA_NO_CELESTIAL		(9)
 #define REQ_TYPE_BOAT_CMD				(10)
 #define REQ_TYPE_BOAT_GROUP_MEMBERSHIP			(11)
+#define REQ_TYPE_SYS_REQUEST_COUNTS			(12)
+#define COUNTERS_REQ_TYPE_COUNT				(REQ_TYPE_SYS_REQUEST_COUNTS + 1)
 
 static const char* REQ_STR_GET_WIND =			"wind";
 static const char* REQ_STR_GET_WIND_ADJCUR =		"wind_c";
@@ -67,6 +69,7 @@ static const char* REQ_STR_GET_BOAT_DATA =		"bd";
 static const char* REQ_STR_GET_BOAT_DATA_NO_CELESTIAL =	"bd_nc";
 static const char* REQ_STR_BOAT_CMD =			"boatcmd";
 static const char* REQ_STR_BOAT_GROUP_MEMBERSHIP =	"boatgroupmembers";
+static const char* REQ_STR_SYS_REQUEST_COUNTS =		"sys_req_counts";
 
 
 #define REQ_MAX_ARG_COUNT (2)
@@ -95,6 +98,23 @@ typedef union
 #define SEND_MSG_BUF_SIZE (64 * 1024)
 
 
+// Statistics counters
+#define COUNTER_ACCEPT		(0)
+#define COUNTER_ACCEPT_FAIL	(1)
+#define COUNTER_READ		(2)
+#define COUNTER_READ_FAIL	(3)
+#define COUNTER_DATA_TOO_LONG	(4)
+#define COUNTER_MESSAGE		(5)
+#define COUNTER_MESSAGE_FAIL	(6)
+#define COUNTERS_COUNT		(COUNTER_MESSAGE_FAIL + 1)
+static unsigned long _counter[COUNTERS_COUNT] = { 0 };
+static pthread_mutex_t _counterLock;
+
+// Request type statistics counters
+static unsigned long _counterReqType[COUNTERS_REQ_TYPE_COUNT] = { 0 };
+static pthread_mutex_t _counterReqTypeLock;
+
+
 static int startListen(unsigned int port);
 
 static void* netServerThreadMain(void* arg);
@@ -105,6 +125,7 @@ static int getNextFd();
 static void processConnection(unsigned int workerThreadId, int fd);
 
 static void incCounter(int ctr);
+static void incReqTypeCounter(int ctr);
 
 static int getReqType(const char* s);
 static const uint8_t* getReqExpectedValueTypes(int reqType);
@@ -116,6 +137,7 @@ static void populateWaveResponse(char* buf, size_t bufSize, const proteus_GeoPos
 static void populateBoatDataResponse(char* buf, size_t bufSize, const char* key, bool noCelestial);
 static void populateBoatCmdResponse(char* buf, size_t bufSize, char** tok);
 static void populateBoatGroupMembershipResponse(char* buf, size_t bufSize, const char* key);
+static void populateSysRequestCountsResponse(char* buf, size_t bufSize);
 
 
 static pthread_t _netServerThread;
@@ -169,6 +191,8 @@ int NetServer_handleRequest(int writeFd, char* reqStr)
 	}
 
 	const int reqType = getReqType(s);
+	incReqTypeCounter(reqType);
+
 	if (reqType == REQ_TYPE_INVALID)
 	{
 		goto fail;
@@ -250,6 +274,9 @@ int NetServer_handleRequest(int writeFd, char* reqStr)
 			break;
 		case REQ_TYPE_BOAT_GROUP_MEMBERSHIP:
 			populateBoatGroupMembershipResponse(buf, SEND_MSG_BUF_SIZE, values[0].s);
+			break;
+		case REQ_TYPE_SYS_REQUEST_COUNTS:
+			populateSysRequestCountsResponse(buf, SEND_MSG_BUF_SIZE);
 			break;
 		default:
 			goto fail;
@@ -333,20 +360,6 @@ done:
 }
 
 
-// Statistics counters
-#define COUNTER_ACCEPT		(0)
-#define COUNTER_ACCEPT_FAIL	(1)
-#define COUNTER_READ		(2)
-#define COUNTER_READ_FAIL	(3)
-#define COUNTER_DATA_TOO_LONG	(4)
-#define COUNTER_MESSAGE		(5)
-#define COUNTER_MESSAGE_FAIL	(6)
-#define COUNTERS_COUNT		(COUNTER_MESSAGE_FAIL + 1)
-static unsigned int _counter[COUNTERS_COUNT] = { 0 };
-
-static pthread_mutex_t _counterLock;
-
-
 #define MAX_ACCEPTED_FDS (256)
 // Circular buffer for accepted fds waiting for a worker thread to free up
 static int _acceptedFds[MAX_ACCEPTED_FDS];
@@ -367,6 +380,12 @@ static void* netServerThreadMain(void* arg)
 	if (0 != pthread_mutex_init(&_counterLock, 0))
 	{
 		ERRLOG("Failed to init counter mutex!");
+		return 0;
+	}
+
+	if (0 != pthread_mutex_init(&_counterReqTypeLock, 0))
+	{
+		ERRLOG("Failed to init counterReqType mutex!");
 		return 0;
 	}
 
@@ -421,20 +440,20 @@ static void* netServerThreadMain(void* arg)
 		//       since no other thread ought to be reading/writing this counter.
 		if ((_counter[COUNTER_ACCEPT] & 0x03ff) == 0)
 		{
-			unsigned int counters[COUNTERS_COUNT];
+			unsigned long counters[COUNTERS_COUNT];
 			if (0 != pthread_mutex_lock(&_counterLock))
 			{
 				ERRLOG("Failed to lock counter mutex!");
 			}
 			else
 			{
-				memcpy(counters, _counter, COUNTERS_COUNT * sizeof(unsigned int));
+				memcpy(counters, _counter, COUNTERS_COUNT * sizeof(unsigned long));
 				if (0 != pthread_mutex_unlock(&_counterLock))
 				{
 					ERRLOG("Failed to unlock counter mutex!");
 				}
 
-				ERRLOG7("Stats: accept=%u, accept_fail=%u, read=%u, read_fail=%u, data_too_long=%u, message=%u, message_fail=%u", \
+				ERRLOG7("Stats: accept=%lu, accept_fail=%lu, read=%lu, read_fail=%lu, data_too_long=%lu, message=%lu, message_fail=%lu", \
 						counters[COUNTER_ACCEPT], \
 						counters[COUNTER_ACCEPT_FAIL], \
 						counters[COUNTER_READ], \
@@ -485,6 +504,7 @@ static void* netServerThreadMain(void* arg)
 	pthread_cond_destroy(&_acceptedFdsCond);
 
 	pthread_mutex_destroy(&_counterLock);
+	pthread_mutex_destroy(&_counterReqTypeLock);
 
 	close(_listenFd);
 	_listenFd = 0;
@@ -717,6 +737,13 @@ static void incCounter(int ctr)
 	pthread_mutex_unlock(&_counterLock);
 }
 
+static void incReqTypeCounter(int ctr)
+{
+	pthread_mutex_lock(&_counterReqTypeLock);
+	_counterReqType[ctr]++;
+	pthread_mutex_unlock(&_counterReqTypeLock);
+}
+
 static int getReqType(const char* s)
 {
 	if (strcmp(REQ_STR_GET_WIND, s) == 0)
@@ -762,6 +789,10 @@ static int getReqType(const char* s)
 	else if (strcmp(REQ_STR_BOAT_GROUP_MEMBERSHIP, s) == 0)
 	{
 		return REQ_TYPE_BOAT_GROUP_MEMBERSHIP;
+	}
+	else if (strcmp(REQ_STR_SYS_REQUEST_COUNTS, s) == 0)
+	{
+		return REQ_TYPE_SYS_REQUEST_COUNTS;
 	}
 
 	return REQ_TYPE_INVALID;
@@ -993,4 +1024,84 @@ static void populateBoatGroupMembershipResponse(char* buf, size_t bufSize, const
 	{
 		ERRLOG("Failed to unlock BoatRegistry lock for boat group membership response!");
 	}
+}
+
+static void populateSysRequestCountsResponse(char* buf, size_t bufSize)
+{
+	unsigned long counters[COUNTERS_COUNT] = { 0 };
+	unsigned long countersReqType[COUNTERS_REQ_TYPE_COUNT] = { 0 };
+
+
+	if (0 != pthread_mutex_lock(&_counterLock))
+	{
+		ERRLOG("Failed to lock counter mutex!");
+		goto fail;
+	}
+
+	memcpy(counters, _counter, COUNTERS_COUNT * sizeof(unsigned long));
+
+	if (0 != pthread_mutex_unlock(&_counterLock))
+	{
+		ERRLOG("Failed to unlock counter mutex!");
+		goto fail;
+	}
+
+
+	if (0 != pthread_mutex_lock(&_counterReqTypeLock))
+	{
+		ERRLOG("Failed to lock counterReqType mutex!");
+		goto fail;
+	}
+
+	memcpy(countersReqType, _counterReqType, COUNTERS_REQ_TYPE_COUNT * sizeof(unsigned long));
+
+	if (0 != pthread_mutex_unlock(&_counterReqTypeLock))
+	{
+		ERRLOG("Failed to unlock counterReqType mutex!");
+		goto fail;
+	}
+
+
+	if ((COUNTERS_COUNT + COUNTERS_REQ_TYPE_COUNT) * 22 >= bufSize)
+	{
+		ERRLOG("Failed to write request counts response due to too many counters and/or not enough space in buffer!");
+		goto fail;
+	}
+
+
+	int src = snprintf(buf, bufSize, "%s,", REQ_STR_SYS_REQUEST_COUNTS);
+	if (src < 2) // < 2 because there must be at least two bytes written here (and similarly below)
+	{
+		ERRLOG1("snprintf failed with return = %d", src);
+		goto fail;
+	}
+
+	int pos = src;
+
+	for (int i = 0; i < COUNTERS_COUNT; i++)
+	{
+		if ((src = snprintf(buf + pos, bufSize - pos, "%lu,", counters[i])) < 2)
+		{
+			ERRLOG1("snprintf failed with return = %d", src);
+			goto fail;
+		}
+		pos += src;
+	}
+
+	for (int i = 0; i < COUNTERS_REQ_TYPE_COUNT; i++)
+	{
+		if ((src = snprintf(buf + pos, bufSize - pos, "%lu,", countersReqType[i])) < 2)
+		{
+			ERRLOG1("snprintf failed with return = %d", src);
+			goto fail;
+		}
+		pos += src;
+	}
+
+	buf[pos - 1] = '\n';
+
+	return;
+
+fail:
+	snprintf(buf, bufSize, "%s,%s", REQ_STR_SYS_REQUEST_COUNTS, "fail");
 }
