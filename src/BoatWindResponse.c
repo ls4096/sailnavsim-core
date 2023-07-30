@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2020-2021 ls4096 <ls4096@8bitbyte.ca>
+ * Copyright (C) 2020-2023 ls4096 <ls4096@8bitbyte.ca>
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Affero General Public License as published by
@@ -535,6 +535,24 @@ static const double WAVE_EFFECT_RESISTANCES[] = {
 	AC72_WAVE_EFFECT_RESISTANCE			// 11
 };
 
+#define KTS_IN_MPS (1.943844)
+#define DEFAULT_DAMAGE_WIND_GUST_THRESHOLD (45.0 / KTS_IN_MPS)
+#define ENHANCED_DAMAGE_WIND_GUST_THRESHOLD (55.0 / KTS_IN_MPS)
+static const double DAMAGE_WIND_GUST_THRESHOLDS[] = {
+	DEFAULT_DAMAGE_WIND_GUST_THRESHOLD,	// 0
+	DEFAULT_DAMAGE_WIND_GUST_THRESHOLD,	// 1
+	DEFAULT_DAMAGE_WIND_GUST_THRESHOLD,	// 2
+	DEFAULT_DAMAGE_WIND_GUST_THRESHOLD,	// 3
+	ENHANCED_DAMAGE_WIND_GUST_THRESHOLD,	// 4 - VOLVO_70
+	ENHANCED_DAMAGE_WIND_GUST_THRESHOLD,	// 5 - SUPER_MAXI_SCALLYWAG
+	DEFAULT_DAMAGE_WIND_GUST_THRESHOLD,	// 6
+	ENHANCED_DAMAGE_WIND_GUST_THRESHOLD,	// 7 - MAXI_TRIMARAN
+	ENHANCED_DAMAGE_WIND_GUST_THRESHOLD,	// 8 - IMOCA_60
+	DEFAULT_DAMAGE_WIND_GUST_THRESHOLD,	// 9
+	ENHANCED_DAMAGE_WIND_GUST_THRESHOLD,	// 10 - VOLVO_65
+	DEFAULT_DAMAGE_WIND_GUST_THRESHOLD	// 11
+};
+
 static const int BOAT_TYPE_MAX = 11;
 
 
@@ -637,4 +655,15 @@ double BoatWindResponse_getWaveEffectResistance(int boatType)
 	}
 
 	return WAVE_EFFECT_RESISTANCES[boatType];
+}
+
+double BoatWindResponse_getDamageWindGustThreshold(int boatType)
+{
+	if (boatType > BOAT_TYPE_MAX)
+	{
+		// Any boat type that isn't modeled just has a zero value here.
+		return 0.0;
+	}
+
+	return DAMAGE_WIND_GUST_THRESHOLDS[boatType];
 }

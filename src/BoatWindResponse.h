@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2020 ls4096 <ls4096@8bitbyte.ca>
+ * Copyright (C) 2020-2023 ls4096 <ls4096@8bitbyte.ca>
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Affero General Public License as published by
@@ -24,5 +24,7 @@ double BoatWindResponse_getCourseChangeRate(int boatType);
 double BoatWindResponse_getSpeedChangeResponse(int boatType);
 
 double BoatWindResponse_getWaveEffectResistance(int boatType);
+
+double BoatWindResponse_getDamageWindGustThreshold(int boatType);
 
 #endif // _BoatWindResponse_h_

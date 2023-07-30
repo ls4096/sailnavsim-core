@@ -99,7 +99,7 @@ void Boat_advance(Boat* b, time_t curTime)
 		if (b->damage > 0.0)
 		{
 			// Possibly fix some boat damage.
-			updateDamage(b, -1.0, 0.0, false);
+			updateDamage(b, -1.0 /* indicates stopped boat */, 0.0, false);
 		}
 
 		return;
@@ -384,13 +384,12 @@ static void updateVelocity(Boat* b, const proteus_Weather* wx, bool odv, const p
 	b->v.mag = ((speedChangeResponse * b->v.mag) + spd) / (speedChangeResponse + 1.0);
 }
 
-#define KNOTS_IN_M_PER_S (1.943844)
+#define KTS_IN_MPS (1.943844)
 
-#define DAMAGE_INC_THRESH (45.0 / KNOTS_IN_M_PER_S)
-#define DAMAGE_DEC_THRESH (25.0 / KNOTS_IN_M_PER_S)
+#define DAMAGE_DECREASE_THRESHOLD (25.0 / KTS_IN_MPS)
 
-#define DAMAGE_TAKE_FACTOR (0.25 * KNOTS_IN_M_PER_S * KNOTS_IN_M_PER_S / 3600.0) // 0.25% (to max damage) per hour per knot squared above threshold.
-#define DAMAGE_REPAIR_FACTOR (0.25 * KNOTS_IN_M_PER_S / 3600.0) // 0.25% per hour per knot below threshold.
+#define DAMAGE_TAKE_FACTOR (0.25 * KTS_IN_MPS * KTS_IN_MPS / 3600.0) // 0.25% (to max damage) per hour per knot squared above threshold.
+#define DAMAGE_REPAIR_FACTOR (0.25 * KTS_IN_MPS / 3600.0) // 0.25% per hour per knot below threshold.
 
 static void updateDamage(Boat* b, double windGust, double windAngle, bool takeDamage)
 {
@@ -399,13 +398,14 @@ static void updateDamage(Boat* b, double windGust, double windAngle, bool takeDa
 		return;
 	}
 
+	// Caller providing windGust < 0.0 indicates "stopped" boat.
 	if (windGust < 0.0)
 	{
 		proteus_Weather wx;
 		proteus_Weather_get(&b->pos, &wx, true);
 
 		// NOTE: No need to adjust wind for ocean currents here
-		//       since the boat will be "stopped" if provided windGust < 0.0.
+		//       since windGust < 0.0 indicates "stopped" boat.
 
 		windGust = wx.windGust;
 		windAngle = wx.wind.angle;
@@ -419,22 +419,24 @@ static void updateDamage(Boat* b, double windGust, double windAngle, bool takeDa
 		windGust = appWindGust.mag;
 	}
 
-	if (windGust < DAMAGE_DEC_THRESH)
+	const double damageTakeThreshold = BoatWindResponse_getDamageWindGustThreshold(b->boatType);
+
+	if (windGust < DAMAGE_DECREASE_THRESHOLD)
 	{
 		if (b->damage > 0.0)
 		{
 			// Repair damage.
-			b->damage -= ((DAMAGE_DEC_THRESH - windGust) * DAMAGE_REPAIR_FACTOR);
+			b->damage -= ((DAMAGE_DECREASE_THRESHOLD - windGust) * DAMAGE_REPAIR_FACTOR);
 			if (b->damage < 0.0)
 			{
 				b->damage = 0.0;
 			}
 		}
 	}
-	else if (windGust > DAMAGE_INC_THRESH && takeDamage && b->damage < 100.0)
+	else if (windGust > damageTakeThreshold && takeDamage && b->damage < 100.0)
 	{
 		// Take damage.
-		const double threshDiff = windGust - DAMAGE_INC_THRESH;
+		const double threshDiff = windGust - damageTakeThreshold;
 
 		b->damage += ((100.0 - b->damage) * (threshDiff * threshDiff * DAMAGE_TAKE_FACTOR * 0.01));
 		if (b->damage > 100.0)
