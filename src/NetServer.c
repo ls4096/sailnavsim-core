@@ -16,6 +16,7 @@
 
 #include <errno.h>
 #include <pthread.h>
+#include <stdatomic.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -98,6 +99,12 @@ typedef union
 #define SEND_MSG_BUF_SIZE (64 * 1024)
 
 
+#define CACHE_LINE_SIZE (64)
+typedef union {
+	atomic_int_fast64_t i64;
+	atomic_uint_fast64_t u64;
+} __attribute__((aligned(CACHE_LINE_SIZE))) CacheLineAlignedAtomic;
+
 // Statistics counters
 #define COUNTER_ACCEPT		(0)
 #define COUNTER_ACCEPT_FAIL	(1)
@@ -107,12 +114,10 @@ typedef union
 #define COUNTER_MESSAGE		(5)
 #define COUNTER_MESSAGE_FAIL	(6)
 #define COUNTERS_COUNT		(COUNTER_MESSAGE_FAIL + 1)
-static unsigned long _counter[COUNTERS_COUNT] = { 0 };
-static pthread_mutex_t _counterLock;
+static CacheLineAlignedAtomic _counter[COUNTERS_COUNT] = { 0 };
 
 // Request type statistics counters
-static unsigned long _counterReqType[COUNTERS_REQ_TYPE_COUNT] = { 0 };
-static pthread_mutex_t _counterReqTypeLock;
+static CacheLineAlignedAtomic _counterReqType[COUNTERS_REQ_TYPE_COUNT] = { 0 };
 
 
 static int startListen(unsigned int port);
@@ -377,18 +382,6 @@ static void* netServerThreadMain(void* arg)
 
 	pthread_t workerThreads[workerThreadCount];
 
-	if (0 != pthread_mutex_init(&_counterLock, 0))
-	{
-		ERRLOG("Failed to init counter mutex!");
-		return 0;
-	}
-
-	if (0 != pthread_mutex_init(&_counterReqTypeLock, 0))
-	{
-		ERRLOG("Failed to init counterReqType mutex!");
-		return 0;
-	}
-
 	if (0 != pthread_mutex_init(&_acceptedFdsLock, 0))
 	{
 		ERRLOG("Failed to init accepted fds mutex!");
@@ -436,44 +429,28 @@ static void* netServerThreadMain(void* arg)
 	for (;;)
 	{
 		// Occasionally log statistics counters.
-		// NOTE: We don't need to lock the mutex for COUNTER_ACCEPT and COUNTER_ACCEPT_FAIL,
-		//       since no other thread ought to be reading/writing this counter.
-		if ((_counter[COUNTER_ACCEPT] & 0x03ff) == 0)
+		if ((_counter[COUNTER_ACCEPT].u64 & 0x03ff) == 0)
 		{
-			unsigned long counters[COUNTERS_COUNT];
-			if (0 != pthread_mutex_lock(&_counterLock))
-			{
-				ERRLOG("Failed to lock counter mutex!");
-			}
-			else
-			{
-				memcpy(counters, _counter, COUNTERS_COUNT * sizeof(unsigned long));
-				if (0 != pthread_mutex_unlock(&_counterLock))
-				{
-					ERRLOG("Failed to unlock counter mutex!");
-				}
-
-				ERRLOG7("Stats: accept=%lu, accept_fail=%lu, read=%lu, read_fail=%lu, data_too_long=%lu, message=%lu, message_fail=%lu", \
-						counters[COUNTER_ACCEPT], \
-						counters[COUNTER_ACCEPT_FAIL], \
-						counters[COUNTER_READ], \
-						counters[COUNTER_READ_FAIL], \
-						counters[COUNTER_DATA_TOO_LONG], \
-						counters[COUNTER_MESSAGE], \
-						counters[COUNTER_MESSAGE_FAIL]);
-			}
+			ERRLOG7("Stats: accept=%lu, accept_fail=%lu, read=%lu, read_fail=%lu, data_too_long=%lu, message=%lu, message_fail=%lu", \
+					_counter[COUNTER_ACCEPT].u64, \
+					_counter[COUNTER_ACCEPT_FAIL].u64, \
+					_counter[COUNTER_READ].u64, \
+					_counter[COUNTER_READ_FAIL].u64, \
+					_counter[COUNTER_DATA_TOO_LONG].u64, \
+					_counter[COUNTER_MESSAGE].u64, \
+					_counter[COUNTER_MESSAGE_FAIL].u64);
 		}
 
 		struct sockaddr_in peer;
 		socklen_t sl = sizeof(struct sockaddr_in);
 
 		int fd = accept(_listenFd, (struct sockaddr*) &peer, &sl);
-		_counter[COUNTER_ACCEPT]++;
+		_counter[COUNTER_ACCEPT].u64++;
 
 		if (fd < 0)
 		{
 			ERRLOG1("Failed accept! errno=%d", errno);
-			_counter[COUNTER_ACCEPT_FAIL]++;
+			_counter[COUNTER_ACCEPT_FAIL].u64++;
 
 			continue;
 		}
@@ -502,9 +479,6 @@ static void* netServerThreadMain(void* arg)
 
 	pthread_mutex_destroy(&_acceptedFdsLock);
 	pthread_cond_destroy(&_acceptedFdsCond);
-
-	pthread_mutex_destroy(&_counterLock);
-	pthread_mutex_destroy(&_counterReqTypeLock);
 
 	close(_listenFd);
 	_listenFd = 0;
@@ -732,21 +706,23 @@ static void processConnection(unsigned int workerThreadId, int fd)
 
 static void incCounter(int ctr)
 {
-	pthread_mutex_lock(&_counterLock);
-	_counter[ctr]++;
-	pthread_mutex_unlock(&_counterLock);
+	_counter[ctr].u64++;
 }
 
 static void incReqTypeCounter(int ctr)
 {
-	pthread_mutex_lock(&_counterReqTypeLock);
-	_counterReqType[ctr]++;
-	pthread_mutex_unlock(&_counterReqTypeLock);
+	_counterReqType[ctr].u64++;
 }
 
 static int getReqType(const char* s)
 {
-	if (strcmp(REQ_STR_GET_WIND, s) == 0)
+	if (strcmp(REQ_STR_GET_BOAT_DATA_NO_CELESTIAL, s) == 0)
+	{
+		// This is generally expected to be the most common request type,
+		// so check for it first.
+		return REQ_TYPE_GET_BOAT_DATA_NO_CELESTIAL;
+	}
+	else if (strcmp(REQ_STR_GET_WIND, s) == 0)
 	{
 		return REQ_TYPE_GET_WIND;
 	}
@@ -777,10 +753,6 @@ static int getReqType(const char* s)
 	else if (strcmp(REQ_STR_GET_BOAT_DATA, s) == 0)
 	{
 		return REQ_TYPE_GET_BOAT_DATA;
-	}
-	else if (strcmp(REQ_STR_GET_BOAT_DATA_NO_CELESTIAL, s) == 0)
-	{
-		return REQ_TYPE_GET_BOAT_DATA_NO_CELESTIAL;
 	}
 	else if (strcmp(REQ_STR_BOAT_CMD, s) == 0)
 	{
@@ -1028,40 +1000,6 @@ static void populateBoatGroupMembershipResponse(char* buf, size_t bufSize, const
 
 static void populateSysRequestCountsResponse(char* buf, size_t bufSize)
 {
-	unsigned long counters[COUNTERS_COUNT] = { 0 };
-	unsigned long countersReqType[COUNTERS_REQ_TYPE_COUNT] = { 0 };
-
-
-	if (0 != pthread_mutex_lock(&_counterLock))
-	{
-		ERRLOG("Failed to lock counter mutex!");
-		goto fail;
-	}
-
-	memcpy(counters, _counter, COUNTERS_COUNT * sizeof(unsigned long));
-
-	if (0 != pthread_mutex_unlock(&_counterLock))
-	{
-		ERRLOG("Failed to unlock counter mutex!");
-		goto fail;
-	}
-
-
-	if (0 != pthread_mutex_lock(&_counterReqTypeLock))
-	{
-		ERRLOG("Failed to lock counterReqType mutex!");
-		goto fail;
-	}
-
-	memcpy(countersReqType, _counterReqType, COUNTERS_REQ_TYPE_COUNT * sizeof(unsigned long));
-
-	if (0 != pthread_mutex_unlock(&_counterReqTypeLock))
-	{
-		ERRLOG("Failed to unlock counterReqType mutex!");
-		goto fail;
-	}
-
-
 	if ((COUNTERS_COUNT + COUNTERS_REQ_TYPE_COUNT) * 22 >= bufSize)
 	{
 		ERRLOG("Failed to write request counts response due to too many counters and/or not enough space in buffer!");
@@ -1080,7 +1018,7 @@ static void populateSysRequestCountsResponse(char* buf, size_t bufSize)
 
 	for (int i = 0; i < COUNTERS_COUNT; i++)
 	{
-		if ((src = snprintf(buf + pos, bufSize - pos, "%lu,", counters[i])) < 2)
+		if ((src = snprintf(buf + pos, bufSize - pos, "%lu,", _counter[i].u64)) < 2)
 		{
 			ERRLOG1("snprintf failed with return = %d", src);
 			goto fail;
@@ -1090,7 +1028,7 @@ static void populateSysRequestCountsResponse(char* buf, size_t bufSize)
 
 	for (int i = 0; i < COUNTERS_REQ_TYPE_COUNT; i++)
 	{
-		if ((src = snprintf(buf + pos, bufSize - pos, "%lu,", countersReqType[i])) < 2)
+		if ((src = snprintf(buf + pos, bufSize - pos, "%lu,", _counterReqType[i].u64)) < 2)
 		{
 			ERRLOG1("snprintf failed with return = %d", src);
 			goto fail;
