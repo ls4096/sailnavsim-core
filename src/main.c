@@ -54,7 +54,8 @@
 // Minimum value: 2; a value less than 2 results in no boat logs being written
 #define ITERATIONS_PER_LOG (60)
 
-#define NETSERVER_THREAD_COUNT (5)
+#define NETSERVER_DEFAULT_THREAD_COUNT (5)
+#define NETSERVER_MAX_THREAD_COUNT (10000)
 
 
 #define WX_DATA_DIR_PATH_F006 "wx_data_f006/"
@@ -86,7 +87,7 @@
 #define PERF_TEST_MAX_BOAT_COUNT (819200)
 
 
-static const char* VERSION_STRING = "SailNavSim version 1.18.1 (" __DATE__ " " __TIME__ ")";
+static const char* VERSION_STRING = "SailNavSim version 1.19.0-dev (" __DATE__ " " __TIME__ ")";
 
 
 static int parseArgs(int argc, char** argv);
@@ -96,6 +97,7 @@ static void handleCommand(Command* cmd);
 static void handleBoatRegistryCommand(Command* cmd);
 
 static int _netPort = 0;
+static int _netThreads = NETSERVER_DEFAULT_THREAD_COUNT;
 
 
 int main(int argc, char** argv)
@@ -229,11 +231,11 @@ int main(int argc, char** argv)
 		return -1;
 	}
 
-	if (_netPort > 0)
+	if (_netPort > 0 && _netThreads > 0)
 	{
 		signal(SIGPIPE, SIG_IGN);
 
-		if (NetServer_init(_netPort, NETSERVER_THREAD_COUNT) != 0)
+		if (NetServer_init(_netPort, _netThreads) != 0)
 		{
 			ERRLOG("Failed to init net server!");
 			return -1;
@@ -629,6 +631,26 @@ static int parseArgs(int argc, char** argv)
 			else
 			{
 				printf("No netport argument provided!\n");
+				return -1;
+			}
+		}
+		else if (0 == strcmp("--netthreads", argv[i]))
+		{
+			if (argv[i + 1])
+			{
+				_netThreads = atoi(argv[i + 1]);
+
+				if (_netThreads <= 0 || _netThreads > NETSERVER_MAX_THREAD_COUNT)
+				{
+					printf("Invalid netthreads argument: %s\n", argv[i + 1]);
+					return -1;
+				}
+
+				i++;
+			}
+			else
+			{
+				printf("No netthreads argument provided!\n");
 				return -1;
 			}
 		}
