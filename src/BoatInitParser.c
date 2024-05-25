@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2020-2023 ls4096 <ls4096@8bitbyte.ca>
+ * Copyright (C) 2020-2024 ls4096 <ls4096@8bitbyte.ca>
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Affero General Public License as published by
@@ -22,6 +22,7 @@
 #include <sqlite3.h>
 
 #include "BoatInitParser.h"
+#include "BoatWindResponse.h"
 #include "ErrLog.h"
 
 
@@ -98,8 +99,8 @@ static int startSql(const char* sqliteDbFilename)
 		fclose(fdb);
 	}
 
-	static const char* SELECT_BOAT_STMT_STR = "SELECT name, race, desiredCourse, started, boatType, boatFlags, friendlyName FROM Boat WHERE isActive = 1;";
-	static const char* SELECT_BOATLOG_STMT_STR = "SELECT lat, lon, courseWater, speedWater, boatStatus, boatLocation, distanceTravelled, damage FROM BoatLog WHERE boatName=? ORDER BY time DESC LIMIT 1;";
+	static const char* SELECT_BOAT_STMT_STR = "SELECT name, race, desiredCourse, started, boatType, boatFlags, friendlyName, sailArea FROM Boat WHERE isActive = 1;";
+	static const char* SELECT_BOATLOG_STMT_STR = "SELECT lat, lon, courseWater, speedWater, boatStatus, boatLocation, distanceTravelled, damage, leewaySpeed, heelingAngle FROM BoatLog WHERE boatName=? ORDER BY time DESC LIMIT 1;";
 
 	int src;
 
@@ -174,6 +175,7 @@ static BoatInitEntry* getNextSql()
 			const int boatType = sqlite3_column_int(_sqlStmtBoat, n++);
 			const int boatFlags = sqlite3_column_int(_sqlStmtBoat, n++);
 			const char* boatFriendlyName = (const char*) sqlite3_column_text(_sqlStmtBoat, n++);
+			const double sailArea = sqlite3_column_double(_sqlStmtBoat, n++);
 
 			src = sqlite3_reset(_sqlStmtBoatLog);
 			if (src != SQLITE_OK)
@@ -202,6 +204,8 @@ static BoatInitEntry* getNextSql()
 				const int boatLocation = sqlite3_column_int(_sqlStmtBoatLog, n++);
 				const double distanceTravelled = sqlite3_column_double(_sqlStmtBoatLog, n++);
 				const double damage = sqlite3_column_double(_sqlStmtBoatLog, n++);
+				const double leewaySpeed = sqlite3_column_double(_sqlStmtBoatLog, n++);
+				const double heelingAngle = sqlite3_column_double(_sqlStmtBoatLog, n++);
 
 				BoatInitEntry* entry = malloc(sizeof(BoatInitEntry));
 				if (!entry)
@@ -225,8 +229,11 @@ static BoatInitEntry* getNextSql()
 				boat->distanceTravelled = distanceTravelled;
 				boat->damage = damage;
 				boat->stop = (boatStatus == 0 && started == 0);
-				boat->sailsDown = (boatLocation == 0 && started == 0);
+				boat->sailsDown = (BoatWindResponse_isBoatTypeBasic(boatType) && boatLocation == 0 && started == 0);
 				boat->movingToSea = (boatLocation == 1 && started == 1);
+				boat->sailArea = sailArea;
+				boat->leewaySpeed = leewaySpeed;
+				boat->heelingAngle = heelingAngle;
 
 				if (boat->stop)
 				{

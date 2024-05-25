@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2020-2021 ls4096 <ls4096@8bitbyte.ca>
+ * Copyright (C) 2020-2024 ls4096 <ls4096@8bitbyte.ca>
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Affero General Public License as published by
@@ -24,10 +24,11 @@
 #define COMMAND_ACTION_START (1)
 #define COMMAND_ACTION_COURSE_TRUE (2)
 #define COMMAND_ACTION_COURSE_MAG (3)
+#define COMMAND_ACTION_SAIL_AREA (4)
 
-#define COMMAND_ACTION_ADD_BOAT (4)
-#define COMMAND_ACTION_ADD_BOAT_WITH_GROUP (5)
-#define COMMAND_ACTION_REMOVE_BOAT (6)
+#define COMMAND_ACTION_ADD_BOAT (5)
+#define COMMAND_ACTION_ADD_BOAT_WITH_GROUP (6)
+#define COMMAND_ACTION_REMOVE_BOAT (7)
 
 
 #define COMMAND_MAX_ARG_COUNT (6)

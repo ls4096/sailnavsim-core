@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2020-2022 ls4096 <ls4096@8bitbyte.ca>
+ * Copyright (C) 2020-2024 ls4096 <ls4096@8bitbyte.ca>
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Affero General Public License as published by
@@ -18,7 +18,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <sailnavsim_rustlib.h>
+#include <sailnavsim_boatregistry.h>
 
 #include "BoatRegistry.h"
 #include "ErrLog.h"
@@ -28,7 +28,7 @@
 
 static pthread_rwlock_t _lock = PTHREAD_RWLOCK_INITIALIZER;
 
-static void* _rustlibRegistry = 0;
+static void* _boatRegistry = 0;
 
 
 static BoatEntry* findBoatEntry(const char* name);
@@ -36,22 +36,22 @@ static BoatEntry* findBoatEntry(const char* name);
 
 int BoatRegistry_init()
 {
-	_rustlibRegistry = sailnavsim_rustlib_boatregistry_new();
-	return (_rustlibRegistry ? 0 : -1);
+	_boatRegistry = sailnavsim_boatregistry_new();
+	return (_boatRegistry ? 0 : -1);
 }
 
 void BoatRegistry_destroy()
 {
-	if (_rustlibRegistry)
+	if (_boatRegistry)
 	{
-		sailnavsim_rustlib_boatregistry_free(_rustlibRegistry);
-		_rustlibRegistry = 0;
+		sailnavsim_boatregistry_free(_boatRegistry);
+		_boatRegistry = 0;
 	}
 }
 
 void* BoatRegistry_registry()
 {
-	return _rustlibRegistry;
+	return _boatRegistry;
 }
 
 
@@ -97,9 +97,9 @@ int BoatRegistry_add(Boat* boat, const char* name, const char* group, const char
 
 	int rc;
 
-	if (0 != (rc = sailnavsim_rustlib_boatregistry_add_boat_entry(_rustlibRegistry, newEntry, name)))
+	if (0 != (rc = sailnavsim_boatregistry_add_boat_entry(_boatRegistry, newEntry, name)))
 	{
-		ERRLOG1("Failed to add boat to rustlib registry! rc=%d", rc);
+		ERRLOG1("Failed to add boat to boat registry! rc=%d", rc);
 
 		free(newEntry->name);
 		if (newEntry->group)
@@ -111,11 +111,11 @@ int BoatRegistry_add(Boat* boat, const char* name, const char* group, const char
 		return BoatRegistry_FAILED;
 	}
 
-	if (group && (0 != (rc = sailnavsim_rustlib_boatregistry_group_add_boat(_rustlibRegistry, group, name, boatAltName))))
+	if (group && (0 != (rc = sailnavsim_boatregistry_group_add_boat(_boatRegistry, group, name, boatAltName))))
 	{
 		ERRLOG1("Failed to add boat to group! rc=%d", rc);
 
-		BoatEntry* removedEntry = sailnavsim_rustlib_boatregistry_remove_boat_entry(_rustlibRegistry, name);
+		BoatEntry* removedEntry = sailnavsim_boatregistry_remove_boat_entry(_boatRegistry, name);
 		if (removedEntry != newEntry)
 		{
 			ERRLOG("Unexpected unequal removed BoatEntry compared to local BoatEntry!");
@@ -147,7 +147,7 @@ const BoatEntry* BoatRegistry_getBoatEntry(const char* name)
 
 Boat* BoatRegistry_remove(const char* name)
 {
-	BoatEntry* e = sailnavsim_rustlib_boatregistry_remove_boat_entry(_rustlibRegistry, name);
+	BoatEntry* e = sailnavsim_boatregistry_remove_boat_entry(_boatRegistry, name);
 	if (!e)
 	{
 		return 0;
@@ -158,7 +158,7 @@ Boat* BoatRegistry_remove(const char* name)
 	free(e->name);
 	if (e->group)
 	{
-		sailnavsim_rustlib_boatregistry_group_remove_boat(_rustlibRegistry, e->group, name);
+		sailnavsim_boatregistry_group_remove_boat(_boatRegistry, e->group, name);
 		free(e->group);
 	}
 	free(e);
@@ -169,12 +169,12 @@ Boat* BoatRegistry_remove(const char* name)
 
 const char* BoatRegistry_getBoatsInGroupResponse(const char* group)
 {
-	return sailnavsim_rustlib_boatregistry_produce_group_membership_response(_rustlibRegistry, group);
+	return sailnavsim_boatregistry_produce_group_membership_response(_boatRegistry, group);
 }
 
 void BoatRegistry_freeBoatsInGroupResponse(const char* resp)
 {
-	sailnavsim_rustlib_boatregistry_free_group_membership_response((char*)resp);
+	sailnavsim_boatregistry_free_group_membership_response((char*)resp);
 }
 
 
@@ -214,5 +214,5 @@ int BoatRegistry_unlock()
 
 static BoatEntry* findBoatEntry(const char* name)
 {
-	return sailnavsim_rustlib_boatregistry_get_boat_entry(_rustlibRegistry, name);
+	return sailnavsim_boatregistry_get_boat_entry(_boatRegistry, name);
 }

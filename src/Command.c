@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2020-2022 ls4096 <ls4096@8bitbyte.ca>
+ * Copyright (C) 2020-2024 ls4096 <ls4096@8bitbyte.ca>
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Affero General Public License as published by
@@ -24,6 +24,7 @@
 
 #include "Command.h"
 
+#include "BoatWindResponse.h"
 #include "ErrLog.h"
 
 
@@ -35,6 +36,7 @@ static const char* CMD_ACTION_STR_STOP = "stop";
 static const char* CMD_ACTION_STR_START = "start";
 static const char* CMD_ACTION_STR_COURSE_TRUE = "course";
 static const char* CMD_ACTION_STR_COURSE_MAG = "course_m";
+static const char* CMD_ACTION_STR_SAIL_AREA = "sail_area";
 
 static const char* CMD_ACTION_STR_ADD_BOAT = "add";
 static const char* CMD_ACTION_STR_ADD_BOAT_WITH_GROUP = "add_g";
@@ -48,7 +50,7 @@ static const char* CMD_ACTION_STR_REMOVE_BOAT = "remove";
 
 static const uint8_t CMD_ACTION_VALS_NONE[COMMAND_MAX_ARG_COUNT] = { CMD_VAL_NONE, CMD_VAL_NONE, CMD_VAL_NONE, CMD_VAL_NONE, CMD_VAL_NONE, CMD_VAL_NONE };
 
-static const uint8_t CMD_ACTION_COURSE_VALS[COMMAND_MAX_ARG_COUNT] = { CMD_VAL_INT, CMD_VAL_NONE, CMD_VAL_NONE, CMD_VAL_NONE, CMD_VAL_NONE, CMD_VAL_NONE };
+static const uint8_t CMD_ACTION_SINGLE_INT_VALS[COMMAND_MAX_ARG_COUNT] = { CMD_VAL_INT, CMD_VAL_NONE, CMD_VAL_NONE, CMD_VAL_NONE, CMD_VAL_NONE, CMD_VAL_NONE };
 static const uint8_t CMD_ACTION_ADD_BOAT_VALS[COMMAND_MAX_ARG_COUNT] = { CMD_VAL_DOUBLE, CMD_VAL_DOUBLE, CMD_VAL_INT, CMD_VAL_INT, CMD_VAL_NONE, CMD_VAL_NONE };
 static const uint8_t CMD_ACTION_ADD_BOAT_WITH_GROUP_VALS[COMMAND_MAX_ARG_COUNT] = { CMD_VAL_DOUBLE, CMD_VAL_DOUBLE, CMD_VAL_INT, CMD_VAL_INT, CMD_VAL_STRING, CMD_VAL_STRING };
 
@@ -63,6 +65,7 @@ static int handleCmd(char* cmdStr);
 static int getAction(const char* s);
 static const uint8_t* getActionExpectedValueTypes(int action);
 static bool areValuesValidForAction(int action, CommandValue values[COMMAND_MAX_ARG_COUNT]);
+static bool isBoatTypeValid(int boatType);
 static int queueCmd(Command* cmd);
 
 
@@ -305,6 +308,10 @@ static int getAction(const char* s)
 	{
 		return COMMAND_ACTION_COURSE_MAG;
 	}
+	else if (strcmp(CMD_ACTION_STR_SAIL_AREA, s) == 0)
+	{
+		return COMMAND_ACTION_SAIL_AREA;
+	}
 	else if (strcmp(CMD_ACTION_STR_ADD_BOAT, s) == 0)
 	{
 		return COMMAND_ACTION_ADD_BOAT;
@@ -327,7 +334,8 @@ static const uint8_t* getActionExpectedValueTypes(int action)
 	{
 		case COMMAND_ACTION_COURSE_TRUE:
 		case COMMAND_ACTION_COURSE_MAG:
-			return CMD_ACTION_COURSE_VALS;
+		case COMMAND_ACTION_SAIL_AREA:
+			return CMD_ACTION_SINGLE_INT_VALS;
 		case COMMAND_ACTION_ADD_BOAT:
 			return CMD_ACTION_ADD_BOAT_VALS;
 		case COMMAND_ACTION_ADD_BOAT_WITH_GROUP:
@@ -346,6 +354,10 @@ static bool areValuesValidForAction(int action, CommandValue values[COMMAND_MAX_
 		{
 			return (values[0].i >= 0 && values[0].i <= 360);
 		}
+		case COMMAND_ACTION_SAIL_AREA:
+		{
+			return (values[0].i >= 0 && values[0].i <= 100);
+		}
 		case COMMAND_ACTION_ADD_BOAT:
 		case COMMAND_ACTION_ADD_BOAT_WITH_GROUP:
 		{
@@ -359,13 +371,18 @@ static bool areValuesValidForAction(int action, CommandValue values[COMMAND_MAX_
 
 			return (values[0].d > -90.0 && values[0].d < 90.0 &&
 					values[1].d >= -180.0 && values[1].d <= 180.0 &&
-					values[2].i >= 0 && values[2].i <= BOAT_TYPE_MAX_VALUE &&
+					isBoatTypeValid(values[2].i) &&
 					values[3].i >= 0 && values[3].i <= BOAT_FLAGS_MAX_VALUE);
 		}
 	}
 
 	// All other actions do not use values and have no restrictions.
 	return true;
+}
+
+static bool isBoatTypeValid(int boatType)
+{
+	return (BoatWindResponse_isBoatTypeBasic(boatType) || BoatWindResponse_isBoatTypeAdvanced(boatType));
 }
 
 static int queueCmd(Command* cmd)

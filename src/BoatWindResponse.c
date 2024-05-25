@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2020-2023 ls4096 <ls4096@8bitbyte.ca>
+ * Copyright (C) 2020-2024 ls4096 <ls4096@8bitbyte.ca>
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Affero General Public License as published by
@@ -15,6 +15,9 @@
  */
 
 #include <math.h>
+#include <stdbool.h>
+
+#include <sailnavsim_advancedboats.h>
 
 #include "BoatWindResponse.h"
 
@@ -553,14 +556,38 @@ static const double DAMAGE_WIND_GUST_THRESHOLDS[] = {
 	DEFAULT_DAMAGE_WIND_GUST_THRESHOLD	// 11
 };
 
-static const int BOAT_TYPE_MAX = 11;
+static const int BASIC_BOAT_TYPE_MAX = 11;
+static const int ADVANCED_BOAT_TYPE_OFFSET = 1024;
 
+static int _advancedBoatTypeCount = 0;
+
+
+int BoatWindResponse_init()
+{
+	_advancedBoatTypeCount = sailnavsim_advancedboats_get_boat_type_count();
+	return 0;
+}
+
+bool BoatWindResponse_isBoatTypeBasic(int boatType)
+{
+	return (boatType >= 0 && boatType <= BASIC_BOAT_TYPE_MAX);
+}
+
+bool BoatWindResponse_isBoatTypeAdvanced(int boatType)
+{
+	return (boatType >= ADVANCED_BOAT_TYPE_OFFSET) && (boatType < ADVANCED_BOAT_TYPE_OFFSET + _advancedBoatTypeCount);
+}
+
+int BoatWindResponse_adjustBoatTypeForAdvanced(int boatType)
+{
+	return (boatType - ADVANCED_BOAT_TYPE_OFFSET);
+}
 
 double BoatWindResponse_getBoatSpeed(double windSpd, double angleFromWind, int boatType)
 {
-	if (boatType > BOAT_TYPE_MAX)
+	if (!BoatWindResponse_isBoatTypeBasic(boatType))
 	{
-		// Any boat type that isn't modeled always just gets a zero speed.
+		// Any boat type that isn't modeled here always just gets a zero speed returned.
 		return 0.0;
 	}
 
@@ -626,44 +653,56 @@ double BoatWindResponse_getBoatSpeed(double windSpd, double angleFromWind, int b
 
 double BoatWindResponse_getCourseChangeRate(int boatType)
 {
-	if (boatType > BOAT_TYPE_MAX)
+	if (BoatWindResponse_isBoatTypeBasic(boatType))
 	{
-		// Any boat type that isn't modeled always just gets a zero rate.
-		return 0.0;
+		return COURSE_CHANGE_RATES[boatType];
+	}
+	else if (BoatWindResponse_isBoatTypeAdvanced(boatType))
+	{
+		return sailnavsim_advancedboats_boat_course_change_rate(BoatWindResponse_adjustBoatTypeForAdvanced(boatType));
 	}
 
-	return COURSE_CHANGE_RATES[boatType];
+	// Any boat type that isn't modeled always just gets a zero rate.
+	return 0.0;
 }
 
 double BoatWindResponse_getSpeedChangeResponse(int boatType)
 {
-	if (boatType > BOAT_TYPE_MAX)
+	if (BoatWindResponse_isBoatTypeBasic(boatType))
 	{
-		// Any boat type that isn't modeled just has very large inertia.
-		return 1.0e30;
+		return BOAT_INERTIAS[boatType];
 	}
 
-	return BOAT_INERTIAS[boatType];
+	// Any boat type that isn't modeled just has very large inertia.
+	return 1.0e30;
 }
 
 double BoatWindResponse_getWaveEffectResistance(int boatType)
 {
-	if (boatType > BOAT_TYPE_MAX)
+	if (BoatWindResponse_isBoatTypeBasic(boatType))
 	{
-		// Any boat type that isn't modeled just has very low wave resistance.
-		return 0.001;
+		return WAVE_EFFECT_RESISTANCES[boatType];
+	}
+	else if (BoatWindResponse_isBoatTypeAdvanced(boatType))
+	{
+		return sailnavsim_advancedboats_boat_wave_effect_resistance(BoatWindResponse_adjustBoatTypeForAdvanced(boatType));
 	}
 
-	return WAVE_EFFECT_RESISTANCES[boatType];
+	// Any boat type that isn't modeled just has very low wave resistance.
+	return 0.001;
 }
 
 double BoatWindResponse_getDamageWindGustThreshold(int boatType)
 {
-	if (boatType > BOAT_TYPE_MAX)
+	if (BoatWindResponse_isBoatTypeBasic(boatType))
 	{
-		// Any boat type that isn't modeled just has a zero value here.
-		return 0.0;
+		return DAMAGE_WIND_GUST_THRESHOLDS[boatType];
+	}
+	else if (BoatWindResponse_isBoatTypeAdvanced(boatType))
+	{
+		return sailnavsim_advancedboats_boat_damage_wind_gust_threshold(BoatWindResponse_adjustBoatTypeForAdvanced(boatType));
 	}
 
-	return DAMAGE_WIND_GUST_THRESHOLDS[boatType];
+	// Any boat type that isn't modeled just has a zero value here.
+	return 0.0;
 }

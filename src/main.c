@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2020-2023 ls4096 <ls4096@8bitbyte.ca>
+ * Copyright (C) 2020-2024 ls4096 <ls4096@8bitbyte.ca>
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Affero General Public License as published by
@@ -33,11 +33,12 @@
 #include <proteus/Wave.h>
 #include <proteus/Weather.h>
 
-#include <sailnavsim_rustlib.h>
+#include <sailnavsim_boatregistry.h>
 
 #include "Boat.h"
 #include "BoatInitParser.h"
 #include "BoatRegistry.h"
+#include "BoatWindResponse.h"
 #include "CelestialSight.h"
 #include "Command.h"
 #include "ErrLog.h"
@@ -213,6 +214,12 @@ int main(int argc, char** argv)
 		return -1;
 	}
 
+	if (BoatWindResponse_init() != 0)
+	{
+		ERRLOG("Failed to init BoatWindResponse module!");
+		return -1;
+	}
+
 	if (Command_init(CMDS_INPUT_PATH) != 0)
 	{
 		ERRLOG("Failed to init command processor!");
@@ -262,8 +269,8 @@ int main(int argc, char** argv)
 		time_t curTime = time(0);
 
 		unsigned int boatCount;
-		void* iterator = sailnavsim_rustlib_boatregistry_get_boats_iterator(BoatRegistry_registry(), &boatCount);
-		BoatEntry* boats = sailnavsim_rustlib_boatregistry_boats_iterator_get_next(iterator);
+		void* iterator = sailnavsim_boatregistry_get_boats_iterator(BoatRegistry_registry(), &boatCount);
+		BoatEntry* boats = sailnavsim_boatregistry_boats_iterator_get_next(iterator);
 
 		// Process all boats.
 		if (boatCount > 0)
@@ -380,7 +387,7 @@ int main(int argc, char** argv)
 					ilog++;
 				}
 
-				e = sailnavsim_rustlib_boatregistry_boats_iterator_get_next(iterator);
+				e = sailnavsim_boatregistry_boats_iterator_get_next(iterator);
 			}
 
 			if (BoatRegistry_OK != BoatRegistry_unlock())
@@ -420,7 +427,7 @@ int main(int argc, char** argv)
 				Logger_writeLogs(logEntries, boatCount, csEntries, totalSights);
 			}
 		}
-		sailnavsim_rustlib_boatregistry_free_boats_iterator(iterator);
+		sailnavsim_boatregistry_free_boats_iterator(iterator);
 
 
 		// If this is a performance test run, then handle things a bit differently, take some measurements, and loop back early.
@@ -430,8 +437,8 @@ int main(int argc, char** argv)
 
 			if (perfIter == 0)
 			{
-				void* iterator = sailnavsim_rustlib_boatregistry_get_boats_iterator(BoatRegistry_registry(), &currentBoatCount);
-				sailnavsim_rustlib_boatregistry_free_boats_iterator(iterator);
+				void* iterator = sailnavsim_boatregistry_get_boats_iterator(BoatRegistry_registry(), &currentBoatCount);
+				sailnavsim_boatregistry_free_boats_iterator(iterator);
 
 				if (perfFirst)
 				{
@@ -466,8 +473,8 @@ int main(int argc, char** argv)
 				if (perfIter >= (PERF_TEST_ITERATIONS_WARMUP + PERF_TEST_ITERATIONS_MEASURE) * perfTestIterationsFactor)
 				{
 					// We're done this set, so print result and proceed to next set of iterations.
-					void* iterator = sailnavsim_rustlib_boatregistry_get_boats_iterator(BoatRegistry_registry(), &currentBoatCount);
-					sailnavsim_rustlib_boatregistry_free_boats_iterator(iterator);
+					void* iterator = sailnavsim_boatregistry_get_boats_iterator(BoatRegistry_registry(), &currentBoatCount);
+					sailnavsim_boatregistry_free_boats_iterator(iterator);
 
 					const long bips = PERF_TEST_ITERATIONS_MEASURE * perfTestIterationsFactor * currentBoatCount * 1000000000L / perfTotalNs;
 
@@ -686,8 +693,8 @@ static void handleCommand(Command* cmd)
 			return;
 	}
 
-	Boat* foundBoat = BoatRegistry_get(cmd->name);
-	if (!foundBoat)
+	Boat* b = BoatRegistry_get(cmd->name);
+	if (!b)
 	{
 		return;
 	}
@@ -695,20 +702,34 @@ static void handleCommand(Command* cmd)
 	switch (cmd->action)
 	{
 		case COMMAND_ACTION_STOP:
-			foundBoat->sailsDown = true;
+			if (BoatWindResponse_isBoatTypeBasic(b->boatType))
+			{
+				b->sailsDown = true;
+			}
 			break;
 		case COMMAND_ACTION_START:
-			if (Boat_isHeadingTowardWater(foundBoat, time(0)))
+			if (Boat_isHeadingTowardWater(b, time(0)))
 			{
-				foundBoat->stop = false;
-				foundBoat->sailsDown = false;
-				foundBoat->movingToSea = true;
+				if (BoatWindResponse_isBoatTypeAdvanced(b->boatType) && b->sailArea == 0.0)
+				{
+					// Advanced boat type with zero sail area, so start with 10% sail area.
+					b->sailArea = 0.1;
+				}
+				b->stop = false;
+				b->sailsDown = false;
+				b->movingToSea = true;
 			}
 			break;
 		case COMMAND_ACTION_COURSE_TRUE:
 		case COMMAND_ACTION_COURSE_MAG:
-			foundBoat->desiredCourse = cmd->values[0].i;
-			foundBoat->courseMagnetic = (cmd->action == COMMAND_ACTION_COURSE_MAG);
+			b->desiredCourse = cmd->values[0].i;
+			b->courseMagnetic = (cmd->action == COMMAND_ACTION_COURSE_MAG);
+			break;
+		case COMMAND_ACTION_SAIL_AREA:
+			if (BoatWindResponse_isBoatTypeAdvanced(b->boatType))
+			{
+				b->sailArea = ((double) cmd->values[0].i) / 100.0;
+			}
 			break;
 	}
 }

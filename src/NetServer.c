@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2021-2023 ls4096 <ls4096@8bitbyte.ca>
+ * Copyright (C) 2021-2024 ls4096 <ls4096@8bitbyte.ca>
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Affero General Public License as published by
@@ -902,6 +902,8 @@ static void populateBoatDataResponse(char* buf, size_t bufSize, const char* key,
 	proteus_GeoPos pos;
 	proteus_GeoVec v;
 	proteus_GeoVec vGround;
+	double leewaySpeed;
+	double heelingAngle;
 
 	if (boat)
 	{
@@ -914,6 +916,8 @@ static void populateBoatDataResponse(char* buf, size_t bufSize, const char* key,
 			pos = boat->pos;
 			v = boat->v;
 			vGround = boat->vGround;
+			leewaySpeed = boat->leewaySpeed;
+			heelingAngle = boat->heelingAngle;
 		}
 	}
 
@@ -924,7 +928,7 @@ static void populateBoatDataResponse(char* buf, size_t bufSize, const char* key,
 
 	if (boat)
 	{
-		snprintf(buf, bufSize, "%s,%s,ok,%.6f,%.6f,%.1f,%.2f,%.1f,%.2f\n",
+		snprintf(buf, bufSize, "%s,%s,ok,%.6f,%.6f,%.1f,%.2f,%.1f,%.2f,%.2f,%.1f\n",
 				noCelestial ? REQ_STR_GET_BOAT_DATA_NO_CELESTIAL : REQ_STR_GET_BOAT_DATA,
 				key,
 				pos.lat,
@@ -932,7 +936,9 @@ static void populateBoatDataResponse(char* buf, size_t bufSize, const char* key,
 				v.angle,
 				v.mag,
 				vGround.angle,
-				vGround.mag);
+				vGround.mag,
+				leewaySpeed,
+				heelingAngle);
 	}
 	else
 	{

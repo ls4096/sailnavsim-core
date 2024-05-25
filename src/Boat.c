@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2020-2023 ls4096 <ls4096@8bitbyte.ca>
+ * Copyright (C) 2020-2024 ls4096 <ls4096@8bitbyte.ca>
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Affero General Public License as published by
@@ -24,6 +24,8 @@
 #include <proteus/Ocean.h>
 #include <proteus/Wave.h>
 #include <proteus/Weather.h>
+
+#include <sailnavsim_advancedboats.h>
 
 #include "Boat.h"
 
@@ -87,6 +89,10 @@ Boat* Boat_new(double lat, double lon, int boatType, int boatFlags)
 	boat->setImmediateDesiredCourse = true;
 	boat->courseMagnetic = (boatFlags & BOAT_FLAG_CELESTIAL); // Default magnetic for celestial navigation mode.
 
+	boat->sailArea = 0.0;
+	boat->leewaySpeed = 0.0;
+	boat->heelingAngle = 0.0;
+
 	return boat;
 }
 
@@ -137,6 +143,7 @@ void Boat_advance(Boat* b, time_t curTime)
 				// Water ahead, so proceed at fixed speed toward it.
 				b->v.angle = getDesiredCourseTrue(b, curTime);
 				b->v.mag = 0.5;
+				b->leewaySpeed = 0.0;
 
 				b->vGround = b->v;
 
@@ -166,9 +173,13 @@ void Boat_advance(Boat* b, time_t curTime)
 	proteus_WaveData wd;
 	const bool waveDataValid = proteus_Wave_get(&b->pos, &wd);
 
-	if (b->sailsDown)
+	const bool advancedBoatType = BoatWindResponse_isBoatTypeAdvanced(b->boatType);
+
+	if (!advancedBoatType && b->sailsDown)
 	{
-		// Sails down, so velocity vector over water is 1/10 of wind.
+		// Sails down for basic/non-advanced boat types
+
+		// Velocity vector over water is 1/10 of wind.
 		const proteus_GeoVec* windVec = &wx.wind;
 
 		b->v.angle = windVec->angle + 180.0;
@@ -188,7 +199,8 @@ void Boat_advance(Boat* b, time_t curTime)
 	else
 	{
 		// Update boat damage.
-		updateDamage(b, wx.windGust, wx.wind.angle, true);
+		const bool takeDamage = (!advancedBoatType || b->sailArea > 0.0); // For advanced boat types, only take additional damage if some sail is up.
+		updateDamage(b, wx.windGust, wx.wind.angle, takeDamage);
 
 		// Update course, if necessary.
 		updateCourse(b, curTime);
@@ -197,7 +209,7 @@ void Boat_advance(Boat* b, time_t curTime)
 		updateVelocity(b, &wx, oceanDataValid, &od, waveDataValid, &wd);
 	}
 
-	// Compute "over ground" vector, based on ocean currents (if available).
+	// Compute "over ground" vector, based on leeway and ocean currents (if available).
 	b->vGround = b->v;
 
 	if (oceanDataValid)
@@ -213,9 +225,26 @@ void Boat_advance(Boat* b, time_t curTime)
 
 		proteus_GeoVec_add(&b->vGround, &od.current);
 	}
-	else if (b->vGround.mag < 0.0)
+
+	if (b->leewaySpeed != 0.0)
 	{
-		// Ocean data is not valid, but we still need to ensure that the "over ground" vector has positive magnitude.
+		// There is non-zero leeway, so take this into account.
+		proteus_GeoVec leewayVec = {
+			.angle = b->v.angle + 90.0,
+			.mag = b->leewaySpeed
+		};
+
+		if (leewayVec.angle >= 360.0)
+		{
+			leewayVec.angle -= 360.0;
+		}
+
+		proteus_GeoVec_add(&b->vGround, &leewayVec);
+	}
+
+	// Ensure that the "over ground" vector has positive magnitude.
+	if (b->vGround.mag < 0.0)
+	{
 		b->vGround.mag = -b->vGround.mag;
 
 		// Negating the magnitude (to make it positive) means we need to flip the angle 180 degrees.
@@ -374,14 +403,60 @@ static void updateVelocity(Boat* b, const proteus_Weather* wx, bool odv, const p
 
 	const double angleFromWind = proteus_Compass_diff(windVec->angle, b->v.angle);
 
-	const double spd = BoatWindResponse_getBoatSpeed(windVec->mag, angleFromWind, b->boatType) *
-		oceanIceSpeedAdjustmentFactor(odv, od) *
-		boatDamageSpeedAdjustmentFactor(b) *
-		waveSpeedAdjustmentFactor(b, wdv, wd);
+	double speedAdjustmentFactor =
+			oceanIceSpeedAdjustmentFactor(odv, od) *
+			waveSpeedAdjustmentFactor(b, wdv, wd);
 
-	const double speedChangeResponse = BoatWindResponse_getSpeedChangeResponse(b->boatType);
+	if (BoatWindResponse_isBoatTypeAdvanced(b->boatType))
+	{
+		// Advanced boat type
 
-	b->v.mag = ((speedChangeResponse * b->v.mag) + spd) / (speedChangeResponse + 1.0);
+		// NOTE: While sails are down, we intentionally do not take into account the boat damage speed adjustment factor.
+		if (b->sailArea > 0.0)
+		{
+			speedAdjustmentFactor *= boatDamageSpeedAdjustmentFactor(b);
+		}
+
+		// Since the boat will likely already be going slower from the past iterations due to the "speed adjustment factor" here,
+		// we want to ensure the calculations are done on "normal" values without this factor applied, so we divide by it below,
+		// then we multiply back in the SAF with the resultant values after performing the advancedboats calculations below.
+		// We also avoid dividing by values close to and equal to zero with the modification below.
+		const double safModified = ((speedAdjustmentFactor < 0.01) ? 0.01 : speedAdjustmentFactor);
+
+		const AdvancedBoatInputData inputData = {
+			.wind_angle = -angleFromWind,
+			.wind_speed = windVec->mag,
+			.boat_speed_ahead = (b->v.mag / safModified),
+			.boat_speed_abeam = (b->leewaySpeed / safModified),
+			.sail_area = b->sailArea
+		};
+
+		AdvancedBoatOutputData outputData;
+
+		const int32_t rc = sailnavsim_advancedboats_boat_update_v(BoatWindResponse_adjustBoatTypeForAdvanced(b->boatType), &inputData, &outputData);
+		if (0 == rc)
+		{
+			b->v.mag = outputData.boat_speed_ahead * safModified;
+			b->leewaySpeed = outputData.boat_speed_abeam * safModified;
+			b->heelingAngle = outputData.heeling_angle;
+		}
+		else
+		{
+			// Error (shouldn't happen), so to stay sane just set boat's v.mag (speed ahead) and leeway to zero.
+			b->v.mag = 0.0;
+			b->leewaySpeed = 0.0;
+			b->heelingAngle = 0.0;
+		}
+	}
+	else
+	{
+		// Basic boat type
+
+		const double spd = BoatWindResponse_getBoatSpeed(windVec->mag, angleFromWind, b->boatType) * speedAdjustmentFactor * boatDamageSpeedAdjustmentFactor(b);
+		const double speedChangeResponse = BoatWindResponse_getSpeedChangeResponse(b->boatType);
+
+		b->v.mag = ((speedChangeResponse * b->v.mag) + spd) / (speedChangeResponse + 1.0);
+	}
 }
 
 #define KTS_IN_MPS (1.943844)
@@ -413,9 +488,27 @@ static void updateDamage(Boat* b, double windGust, double windAngle, bool takeDa
 
 	if ((b->boatFlags & BOAT_FLAG_DAMAGE_APPARENT_WIND))
 	{
+
 		// Use apparent wind instead of true wind for damage calculations.
 		proteus_GeoVec appWindGust = { .angle = windAngle, .mag = windGust };
 		proteus_GeoVec_add(&appWindGust, &b->v);
+
+		if (b->leewaySpeed != 0.0)
+		{
+			// There is non-zero leeway, so take this into account.
+			proteus_GeoVec leewayVec = {
+				.angle = b->v.angle + 90.0,
+				.mag = b->leewaySpeed
+			};
+
+			if (leewayVec.angle >= 360.0)
+			{
+				leewayVec.angle -= 360.0;
+			}
+
+			proteus_GeoVec_add(&appWindGust, &leewayVec);
+		}
+
 		windGust = appWindGust.mag;
 	}
 
@@ -450,6 +543,8 @@ static void stopBoat(Boat* b)
 {
 	b->stop = true;
 	b->v.mag = 0.0;
+	b->leewaySpeed = 0.0;
+	b->heelingAngle = 0.0;
 
 	b->vGround = b->v;
 

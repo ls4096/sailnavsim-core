@@ -8,7 +8,8 @@ CREATE TABLE Boat(
 	started INTEGER NOT NULL,
 	boatType INTEGER NOT NULL,
 	isActive INTEGER NOT NULL,
-	boatFlags INTEGER NOT NULL
+	boatFlags INTEGER NOT NULL,
+	sailArea REAL
 );
 
 CREATE TABLE BoatRace(
@@ -48,7 +49,10 @@ CREATE TABLE BoatLog(
 	waveHeight REAL,
 	compassMagDec REAL NOT NULL,
 	invisibleLog INTEGER NOT NULL,
-	windGustAngle REAL
+	windGustAngle REAL,
+	sailArea REAL,
+	leewaySpeed REAL,
+	heelingAngle REAL
 );
 
 CREATE TABLE CelestialSight(
