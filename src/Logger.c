@@ -46,6 +46,8 @@
 #define CSV_LOGGER_DIR_PATH_MAXLEN (4096 - 512)
 #define CSV_LOGGER_LINE_BUF_SIZE (2048)
 
+#define SQLITE_BUSY_RETRIES_MAX (5)
+
 
 typedef struct LogEntries LogEntries;
 
@@ -542,14 +544,17 @@ static void writeLogsSql(const LogEntry* const logEntries, unsigned int lCount, 
 static void writeLogsSqlBoatLogs(const LogEntry* const logEntries, unsigned int lCount)
 {
 	int src;
+	unsigned int busyRetryCounter;
 
 	ERRLOG("About to begin BoatLogs DB transaction...");
 
+	busyRetryCounter = SQLITE_BUSY_RETRIES_MAX;
 	while (SQLITE_OK != (src = sqlite3_exec(_sql, "BEGIN IMMEDIATE TRANSACTION;", 0, 0, 0)))
 	{
-		if (SQLITE_BUSY == src)
+		if (SQLITE_BUSY == src && busyRetryCounter > 0)
 		{
-			ERRLOG("Got BUSY trying to start transaction. Trying again in 1 second...");
+			busyRetryCounter--;
+			ERRLOG1("Got BUSY trying to begin transaction. Trying again in 1 second (%u retries remaining)...", busyRetryCounter);
 			sleep(1);
 		}
 		else
@@ -837,21 +842,30 @@ static void writeLogsSqlBoatLogs(const LogEntry* const logEntries, unsigned int 
 		}
 	}
 
-	src = sqlite3_exec(_sql, "END TRANSACTION;", 0, 0, 0);
-	if (SQLITE_OK != src)
+	busyRetryCounter = SQLITE_BUSY_RETRIES_MAX;
+	while (SQLITE_OK != (src = sqlite3_exec(_sql, "END TRANSACTION;", 0, 0, 0)))
 	{
-		ERRLOG1("Failed to end SQL transaction! sqlite rc=%d", src);
-
-		src = sqlite3_exec(_sql, "ROLLBACK;", 0, 0, 0);
-		if (SQLITE_OK != src)
+		if (SQLITE_BUSY == src && busyRetryCounter > 0)
 		{
-			ERRLOG1("Failed to rollback after failed end transaction! sqlite rc=%d", src);
+			busyRetryCounter--;
+			ERRLOG1("Got BUSY trying to end transaction. Trying again in 1 second (%u retries remaining)...", busyRetryCounter);
+			sleep(1);
+		}
+		else
+		{
+			ERRLOG1("Failed to end SQL transaction! sqlite rc=%d", src);
+
+			src = sqlite3_exec(_sql, "ROLLBACK;", 0, 0, 0);
+			if (SQLITE_OK != src)
+			{
+				ERRLOG1("Failed to rollback after failed end transaction! sqlite rc=%d", src);
+			}
+
+			return;
 		}
 	}
-	else
-	{
-		ERRLOG("Committed boat logs to DB.");
-	}
+
+	ERRLOG("Committed BoatLogs DB transaction.");
 }
 
 static void writeLogsSqlCelestialSights(const CelestialSightEntry* const csEntries, unsigned int csCount)
@@ -863,14 +877,17 @@ static void writeLogsSqlCelestialSights(const CelestialSightEntry* const csEntri
 	}
 
 	int src;
+	unsigned int busyRetryCounter;
 
 	ERRLOG("About to begin CelestialSights DB transaction...");
 
+	busyRetryCounter = SQLITE_BUSY_RETRIES_MAX;
 	while (SQLITE_OK != (src = sqlite3_exec(_sql, "BEGIN IMMEDIATE TRANSACTION;", 0, 0, 0)))
 	{
-		if (SQLITE_BUSY == src)
+		if (SQLITE_BUSY == src && busyRetryCounter > 0)
 		{
-			ERRLOG("Got BUSY trying to start transaction. Trying again in 1 second...");
+			busyRetryCounter--;
+			ERRLOG1("Got BUSY trying to begin transaction. Trying again in 1 second (%u retries remaining)...", busyRetryCounter);
 			sleep(1);
 		}
 		else
@@ -939,21 +956,30 @@ static void writeLogsSqlCelestialSights(const CelestialSightEntry* const csEntri
 		}
 	}
 
-	src = sqlite3_exec(_sql, "END TRANSACTION;", 0, 0, 0);
-	if (SQLITE_OK != src)
+	busyRetryCounter = SQLITE_BUSY_RETRIES_MAX;
+	while (SQLITE_OK != (src = sqlite3_exec(_sql, "END TRANSACTION;", 0, 0, 0)))
 	{
-		ERRLOG1("Failed to end SQL transaction! sqlite rc=%d", src);
-
-		src = sqlite3_exec(_sql, "ROLLBACK;", 0, 0, 0);
-		if (SQLITE_OK != src)
+		if (SQLITE_BUSY == src && busyRetryCounter > 0)
 		{
-			ERRLOG1("Failed to rollback after failed end transaction! sqlite rc=%d", src);
+			busyRetryCounter--;
+			ERRLOG1("Got BUSY trying to end transaction. Trying again in 1 second (%u retries remaining)...", busyRetryCounter);
+			sleep(1);
+		}
+		else
+		{
+			ERRLOG1("Failed to end SQL transaction! sqlite rc=%d", src);
+
+			src = sqlite3_exec(_sql, "ROLLBACK;", 0, 0, 0);
+			if (SQLITE_OK != src)
+			{
+				ERRLOG1("Failed to rollback after failed end transaction! sqlite rc=%d", src);
+			}
+
+			return;
 		}
 	}
-	else
-	{
-		ERRLOG("Committed celestial sights to DB.");
-	}
+
+	ERRLOG("Committed CelestialSights DB transaction.");
 }
 
 static int setupSql(const char* sqliteDbFilename)
