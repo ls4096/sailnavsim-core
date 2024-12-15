@@ -31,7 +31,7 @@ pub extern fn sailnavsim_boatregistry_new() -> *mut c_void {
 
 #[no_mangle]
 pub unsafe extern fn sailnavsim_boatregistry_free(ptr_raw: *mut c_void) {
-    let _ptr = Box::from_raw(ptr_raw as *mut BoatRegistry);
+    let _to_free = Box::from_raw(ptr_raw as *mut BoatRegistry);
 }
 
 
@@ -55,7 +55,7 @@ pub extern fn sailnavsim_boatregistry_add_boat_entry(boat_registry_raw: *mut c_v
         false => -2,
     };
 
-    Box::into_raw(boat_registry);
+    let _no_drop = Box::into_raw(boat_registry);
     result
 }
 
@@ -76,7 +76,7 @@ pub extern fn sailnavsim_boatregistry_get_boat_entry(boat_registry_raw: *mut c_v
 
     let result = boat_registry.get_boat(&boat_name);
 
-    Box::into_raw(boat_registry);
+    let _no_drop = Box::into_raw(boat_registry);
     result
 }
 
@@ -97,7 +97,7 @@ pub extern fn sailnavsim_boatregistry_remove_boat_entry(boat_registry_raw: *mut 
 
     let result = boat_registry.remove_boat(&boat_name);
 
-    Box::into_raw(boat_registry);
+    let _no_drop = Box::into_raw(boat_registry);
     result
 }
 
@@ -117,7 +117,7 @@ pub extern fn sailnavsim_boatregistry_get_boats_iterator(boat_registry_raw: *mut
     }
 
     let iter_ptr = Box::into_raw(Box::new(iter)) as *mut c_void;
-    Box::into_raw(boat_registry);
+    let _no_drop = Box::into_raw(boat_registry);
     iter_ptr
 }
 
@@ -129,7 +129,7 @@ pub extern fn sailnavsim_boatregistry_boats_iterator_get_next(iter_raw: *mut c_v
 
     let next_boat = iter.next();
 
-    Box::into_raw(iter);
+    let _no_drop = Box::into_raw(iter);
     next_boat
 }
 
@@ -144,7 +144,7 @@ pub extern fn sailnavsim_boatregistry_boats_iterator_has_next(iter_raw: *mut c_v
         false => 0,
     };
 
-    Box::into_raw(iter);
+    let _no_drop = Box::into_raw(iter);
     result
 }
 
@@ -196,7 +196,7 @@ pub extern fn sailnavsim_boatregistry_group_add_boat(boat_registry_raw: *mut c_v
         false => 1,
     };
 
-    Box::into_raw(boat_registry);
+    let _no_drop = Box::into_raw(boat_registry);
     result
 }
 
@@ -226,7 +226,7 @@ pub extern fn sailnavsim_boatregistry_group_remove_boat(boat_registry_raw: *mut 
 
     boat_registry.remove_boat_from_group(&group, &boat);
 
-    Box::into_raw(boat_registry);
+    let _no_drop = Box::into_raw(boat_registry);
 }
 
 
@@ -248,7 +248,7 @@ pub extern fn sailnavsim_boatregistry_produce_group_membership_response(boat_reg
         Err(_) => 0 as *mut c_char
     };
 
-    Box::into_raw(boat_registry);
+    let _no_drop = Box::into_raw(boat_registry);
     resp
 }
 
