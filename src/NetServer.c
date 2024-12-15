@@ -15,6 +15,7 @@
  */
 
 #include <errno.h>
+#include <netdb.h>
 #include <pthread.h>
 #include <stdatomic.h>
 #include <stdbool.h>
@@ -120,7 +121,7 @@ static CacheLineAlignedAtomic _counter[COUNTERS_COUNT] = { 0 };
 static CacheLineAlignedAtomic _counterReqType[COUNTERS_REQ_TYPE_COUNT] = { 0 };
 
 
-static int startListen(unsigned int port);
+static int startListen(const char* host, unsigned int port);
 
 static void* netServerThreadMain(void* arg);
 static int queueAcceptedFd(int fd);
@@ -149,9 +150,9 @@ static pthread_t _netServerThread;
 static int _listenFd = 0;
 
 
-int NetServer_init(unsigned int port, unsigned int workerThreads)
+int NetServer_init(const char* host, unsigned int port, unsigned int workerThreads)
 {
-	if (startListen(port) != 0)
+	if (startListen(host, port) != 0)
 	{
 		ERRLOG1("Failed to start listening on localhost port %d!", port);
 		return -2;
@@ -321,17 +322,41 @@ fail:
 }
 
 
-static int startListen(unsigned int port)
+static int startListen(const char* host, unsigned int port)
 {
 	int rc = 0;
 
 	struct sockaddr_in sa;
-
 	sa.sin_family = AF_INET;
 	sa.sin_port = htons(port);
-	sa.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
 
-	_listenFd = socket(AF_INET, SOCK_STREAM, 0);
+	if (!host)
+	{
+		sa.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+	}
+	else
+	{
+		struct addrinfo* ai;
+		rc = getaddrinfo(host, 0, 0, &ai);
+		if (rc != 0)
+		{
+			ERRLOG1("Failed to getaddrinfo()! rc=%d", rc);
+			return -4;
+		}
+
+		if (ai->ai_family != AF_INET)
+		{
+			ERRLOG("Unsupported address family!");
+			return -5;
+		}
+
+		sa.sin_family = ai->ai_family;
+		sa.sin_addr = (((struct sockaddr_in*)ai->ai_addr)->sin_addr);
+
+		freeaddrinfo(ai);
+	}
+
+	_listenFd = socket(sa.sin_family, SOCK_STREAM, 0);
 	if (_listenFd < 0)
 	{
 		ERRLOG1("Failed to open socket! errno=%d", errno);

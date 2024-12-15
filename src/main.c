@@ -88,7 +88,7 @@
 #define PERF_TEST_MAX_BOAT_COUNT (819200)
 
 
-static const char* VERSION_STRING = "SailNavSim version 1.19.1 (" __DATE__ " " __TIME__ ")";
+static const char* VERSION_STRING = "SailNavSim version 1.19.2 (" __DATE__ " " __TIME__ ")";
 
 
 static int parseArgs(int argc, char** argv);
@@ -98,6 +98,7 @@ static void handleCommand(Command* cmd);
 static void handleBoatRegistryCommand(Command* cmd);
 
 static int _netPort = 0;
+static char* _netHost = 0;
 static int _netThreads = NETSERVER_DEFAULT_THREAD_COUNT;
 
 
@@ -242,7 +243,7 @@ int main(int argc, char** argv)
 	{
 		signal(SIGPIPE, SIG_IGN);
 
-		if (NetServer_init(_netPort, _netThreads) != 0)
+		if (NetServer_init(_netHost, _netPort, _netThreads) != 0)
 		{
 			ERRLOG("Failed to init net server!");
 			return -1;
@@ -620,6 +621,19 @@ static int parseArgs(int argc, char** argv)
 		else if (0 == strcmp("--perf", argv[i]))
 		{
 			doPerf = true;
+		}
+		else if (0 == strcmp("--nethost", argv[i]))
+		{
+			if (argv[i + 1])
+			{
+				_netHost = strdup(argv[i + 1]);
+				i++;
+			}
+			else
+			{
+				printf("No nethost argument provided!\n");
+				return -1;
+			}
 		}
 		else if (0 == strcmp("--netport", argv[i]))
 		{
