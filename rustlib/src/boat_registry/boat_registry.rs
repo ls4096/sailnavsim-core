@@ -79,7 +79,7 @@ impl BoatRegistry {
         }
     }
 
-    pub fn get_boats_iterator(&self) -> BoatRegistryIter {
+    pub fn get_boats_iterator(&self) -> BoatRegistryIter<'_> {
         BoatRegistryIter {
             iter: self.boats.iter(),
             count: self.boats.len(),

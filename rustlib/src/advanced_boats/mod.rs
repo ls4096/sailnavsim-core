@@ -41,12 +41,12 @@ pub struct AdvancedBoatOutputData {
 
 
 #[no_mangle]
-pub extern fn sailnavsim_advancedboats_get_boat_type_count() -> i32 {
+pub extern "C" fn sailnavsim_advancedboats_get_boat_type_count() -> i32 {
     1
 }
 
 #[no_mangle]
-pub extern fn sailnavsim_advancedboats_boat_update_v(boat_type: i32, in_data_raw: *const AdvancedBoatInputData, out_data_raw: *mut AdvancedBoatOutputData) -> i32 {
+pub extern "C" fn sailnavsim_advancedboats_boat_update_v(boat_type: i32, in_data_raw: *const AdvancedBoatInputData, out_data_raw: *mut AdvancedBoatOutputData) -> i32 {
     let in_data = unsafe { &(*in_data_raw) };
 
     let wind_vec = Vec2::from_angle_mag(in_data.wind_angle, in_data.wind_speed);
@@ -69,7 +69,7 @@ pub extern fn sailnavsim_advancedboats_boat_update_v(boat_type: i32, in_data_raw
 }
 
 #[no_mangle]
-pub extern fn sailnavsim_advancedboats_boat_course_change_rate(boat_type: i32) -> f64 {
+pub extern "C" fn sailnavsim_advancedboats_boat_course_change_rate(boat_type: i32) -> f64 {
     match boat_type {
         0 => 5.0,
         _ => 0.0, // Any boat type that isn't modeled always just gets a zero rate.
@@ -77,7 +77,7 @@ pub extern fn sailnavsim_advancedboats_boat_course_change_rate(boat_type: i32) -
 }
 
 #[no_mangle]
-pub extern fn sailnavsim_advancedboats_boat_wave_effect_resistance(boat_type: i32) -> f64 {
+pub extern "C" fn sailnavsim_advancedboats_boat_wave_effect_resistance(boat_type: i32) -> f64 {
     match boat_type {
         0 => 75.0,
         _ => 0.001, // Any boat type that isn't modeled just has very low wave resistance.
@@ -85,7 +85,7 @@ pub extern fn sailnavsim_advancedboats_boat_wave_effect_resistance(boat_type: i3
 }
 
 #[no_mangle]
-pub extern fn sailnavsim_advancedboats_boat_damage_wind_gust_threshold(boat_type: i32) -> f64 {
+pub extern "C" fn sailnavsim_advancedboats_boat_damage_wind_gust_threshold(boat_type: i32) -> f64 {
     match boat_type {
         0 => 45.0 / KTS_IN_MPS,
         _ => 0.001, // Any boat type that isn't modeled just has very low wind gust damage threshold.

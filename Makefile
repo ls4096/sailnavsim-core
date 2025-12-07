@@ -37,7 +37,7 @@ SOLIB_DEPS = \
 
 
 $(LIBPROTEUS_A):
-	make -C libproteus libproteus
+	make CFLAGS="$(CFLAGS)" -C libproteus libproteus
 
 $(RUSTLIB_A):
 	cd rustlib; \
@@ -46,17 +46,17 @@ $(RUSTLIB_A):
 
 
 src/%.o: src/%.c
-	$(CC) -c -Wall -Wextra -O2 -D_GNU_SOURCE $(SRC_INCLUDES) -o $@ $<
+	$(CC) -c -Wall -Wextra -O2 -D_GNU_SOURCE $(CFLAGS) $(SRC_INCLUDES) -o $@ $<
 
 sailnavsim: $(OBJS) src/main.o $(LIBPROTEUS_A) $(RUSTLIB_A)
-	$(CC) -O2 -D_GNU_SOURCE -o sailnavsim src/main.o $(OBJS) $(LIBPROTEUS_A) $(RUSTLIB_A) $(SOLIB_DEPS)
+	$(CC) -O2 -D_GNU_SOURCE $(CFLAGS) -o sailnavsim src/main.o $(OBJS) $(LIBPROTEUS_A) $(RUSTLIB_A) $(SOLIB_DEPS)
 
 
 tests/%.o: tests/%.c
-	$(CC) -c -Wall -Wextra -O2 -D_GNU_SOURCE -Isrc $(SRC_INCLUDES) -o $@ $<
+	$(CC) -c -Wall -Wextra -O2 -D_GNU_SOURCE $(CFLAGS) -Isrc $(SRC_INCLUDES) -o $@ $<
 
 sailnavsim_tests: $(TESTS_OBJS) $(OBJS) tests/tests_main.o $(LIBPROTEUS_A) $(RUSTLIB_A)
-	$(CC) -O2 -D_GNU_SOURCE -o sailnavsim_tests tests/tests_main.o $(TESTS_OBJS) $(OBJS) $(LIBPROTEUS_A) $(RUSTLIB_A) $(SOLIB_DEPS)
+	$(CC) -O2 -D_GNU_SOURCE $(CFLAGS) -o sailnavsim_tests tests/tests_main.o $(TESTS_OBJS) $(OBJS) $(LIBPROTEUS_A) $(RUSTLIB_A) $(SOLIB_DEPS)
 
 
 clean:
