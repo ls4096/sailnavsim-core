@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2020-2024 ls4096 <ls4096@8bitbyte.ca>
+ * Copyright (C) 2020-2025 ls4096 <ls4096@8bitbyte.ca>
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Affero General Public License as published by
@@ -29,6 +29,7 @@
 #define BOAT_FLAG_CELESTIAL_WAVE_EFFECT		(0x0008)
 #define BOAT_FLAG_DAMAGE_APPARENT_WIND		(0x0010)
 #define BOAT_FLAG_LIVE_SHARING_HIDDEN		(0x0020)
+#define BOAT_FLAG_DAMAGE_REPAIR_DAY_ONLY	(0x0040)
 
 
 typedef struct
@@ -47,6 +48,7 @@ typedef struct
 	double desiredCourse;
 	double distanceTravelled;
 	double damage;
+	double sunAngle;
 
 	int boatType;
 	int boatFlags;

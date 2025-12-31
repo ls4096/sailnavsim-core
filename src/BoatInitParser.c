@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2020-2024 ls4096 <ls4096@8bitbyte.ca>
+ * Copyright (C) 2020-2025 ls4096 <ls4096@8bitbyte.ca>
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Affero General Public License as published by
@@ -100,7 +100,7 @@ static int startSql(const char* sqliteDbFilename)
 	}
 
 	static const char* SELECT_BOAT_STMT_STR = "SELECT name, race, desiredCourse, started, boatType, boatFlags, friendlyName, sailArea FROM Boat WHERE isActive = 1;";
-	static const char* SELECT_BOATLOG_STMT_STR = "SELECT lat, lon, courseWater, speedWater, boatStatus, boatLocation, distanceTravelled, damage, leewaySpeed, heelingAngle FROM BoatLog WHERE boatName=? ORDER BY time DESC LIMIT 1;";
+	static const char* SELECT_BOATLOG_STMT_STR = "SELECT lat, lon, courseWater, speedWater, boatStatus, boatLocation, distanceTravelled, damage, leewaySpeed, heelingAngle, sunAngle FROM BoatLog WHERE boatName=? ORDER BY time DESC LIMIT 1;";
 
 	int src;
 
@@ -206,6 +206,7 @@ static BoatInitEntry* getNextSql()
 				const double damage = sqlite3_column_double(_sqlStmtBoatLog, n++);
 				const double leewaySpeed = sqlite3_column_double(_sqlStmtBoatLog, n++);
 				const double heelingAngle = sqlite3_column_double(_sqlStmtBoatLog, n++);
+				const double sunAngle = sqlite3_column_double(_sqlStmtBoatLog, n++);
 
 				BoatInitEntry* entry = malloc(sizeof(BoatInitEntry));
 				if (!entry)
@@ -234,6 +235,7 @@ static BoatInitEntry* getNextSql()
 				boat->sailArea = sailArea;
 				boat->leewaySpeed = leewaySpeed;
 				boat->heelingAngle = heelingAngle;
+				boat->sunAngle = sunAngle;
 
 				if (boat->stop)
 				{

@@ -52,7 +52,8 @@ CREATE TABLE BoatLog(
 	windGustAngle REAL,
 	sailArea REAL,
 	leewaySpeed REAL,
-	heelingAngle REAL
+	heelingAngle REAL,
+	sunAngle REAL
 );
 
 CREATE TABLE CelestialSight(

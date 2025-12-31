@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2020-2024 ls4096 <ls4096@8bitbyte.ca>
+ * Copyright (C) 2020-2025 ls4096 <ls4096@8bitbyte.ca>
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Affero General Public License as published by
@@ -148,24 +148,21 @@ int Logger_init(const char* csvLoggerDir, const char* sqliteDbFilename)
 
 static char* LOGGER_DEFAULT_LOG_BOAT_NAME = "__default__";
 
-void Logger_fillLogEntry(Boat* boat, const char* name, time_t t, bool reportVisible, LogEntry* log)
+void Logger_fillLogEntry(Boat* boat, proteus_Weather* wx, const char* name, time_t t, bool reportVisible, LogEntry* log)
 {
 	if (!_init)
 	{
 		return;
 	}
 
-	proteus_Weather wx;
-	proteus_Weather_get(&boat->pos, &wx, false);
-
 	proteus_OceanData od;
 	const bool odValid = proteus_Ocean_get(&boat->pos, &od);
 
-	double windGustAngle = wx.wind.angle;
+	double windGustAngle = wx->wind.angle;
 
 	if (odValid)
 	{
-		windGustAngle = WxUtils_adjustWindForCurrent(&wx, &od.current);
+		windGustAngle = WxUtils_adjustWindForCurrent(wx, &od.current);
 	}
 
 	proteus_WaveData wd;
@@ -189,10 +186,11 @@ void Logger_fillLogEntry(Boat* boat, const char* name, time_t t, bool reportVisi
 	log->compassMagDec = compassMagDec;
 	log->distanceTravelled = boat->distanceTravelled;
 	log->damage = boat->damage;
+	log->sunAngle = boat->sunAngle;
 	log->sailArea = boat->sailArea;
 	log->leewaySpeed = boat->leewaySpeed;
 	log->heelingAngle = boat->heelingAngle;
-	log->wx = wx;
+	log->wx = *wx;
 	log->windGustAngle = windGustAngle;
 	log->oceanData = od;
 	log->oceanDataValid = odValid;
@@ -387,6 +385,7 @@ static void writeLogsCsv(const LogEntry* const logEntries, unsigned int lCount, 
 		//  - ocean ice
 		//  - distance travelled
 		//  - boat damage
+		//  - sun angle
 		//  - wind gust
 		//  - wave height
 		//  - compass magnetic declination
@@ -407,7 +406,7 @@ static void writeLogsCsv(const LogEntry* const logEntries, unsigned int lCount, 
 
 		if (log->oceanDataValid)
 		{
-			snprintf(logLine, CSV_LOGGER_LINE_BUF_SIZE, "%lu,%.6f,%.6f,%.1f,%.3f,%.1f,%.3f,%.1f,%.3f,%.1f,%.3f,%.1f,%.1f,%.1f,%.1f,%.0f,%.0f,%.2f,%d,%d,%d,%.3f,%.0f,%.1f,%.3f,%.3f,%.3f,%s,%.3f,%.0f,%.3f,%.1f,%d\n",
+			snprintf(logLine, CSV_LOGGER_LINE_BUF_SIZE, "%lu,%.6f,%.6f,%.1f,%.3f,%.1f,%.3f,%.1f,%.3f,%.1f,%.3f,%.1f,%.1f,%.1f,%.1f,%.0f,%.0f,%.2f,%d,%d,%d,%.3f,%.0f,%.1f,%.3f,%.1f,%.3f,%.3f,%s,%.3f,%.0f,%.3f,%.1f,%d\n",
 				log->time,
 				log->boatPos.lat,
 				log->boatPos.lon,
@@ -433,6 +432,7 @@ static void writeLogsCsv(const LogEntry* const logEntries, unsigned int lCount, 
 				log->oceanData.ice,
 				log->distanceTravelled,
 				log->damage,
+				log->sunAngle,
 				log->windGustAngle,
 				log->wx.windGust,
 				waveHeightStr,
@@ -445,7 +445,7 @@ static void writeLogsCsv(const LogEntry* const logEntries, unsigned int lCount, 
 		}
 		else
 		{
-			snprintf(logLine, CSV_LOGGER_LINE_BUF_SIZE, "%lu,%.6f,%.6f,%.1f,%.3f,%.1f,%.3f,%.1f,%.3f,,,,%.1f,%.1f,%.1f,%.0f,%.0f,%.2f,%d,%d,%d,,,%.1f,%.3f,%.3f,%.3f,%s,%.3f,%.0f,%.3f,%.1f,%d\n",
+			snprintf(logLine, CSV_LOGGER_LINE_BUF_SIZE, "%lu,%.6f,%.6f,%.1f,%.3f,%.1f,%.3f,%.1f,%.3f,,,,%.1f,%.1f,%.1f,%.0f,%.0f,%.2f,%d,%d,%d,,,%.1f,%.3f,%.1f,%.3f,%.3f,%s,%.3f,%.0f,%.3f,%.1f,%d\n",
 				log->time,
 				log->boatPos.lat,
 				log->boatPos.lon,
@@ -466,6 +466,7 @@ static void writeLogsCsv(const LogEntry* const logEntries, unsigned int lCount, 
 				log->locState,
 				log->distanceTravelled,
 				log->damage,
+				log->sunAngle,
 				log->windGustAngle,
 				log->wx.windGust,
 				waveHeightStr,
@@ -834,6 +835,12 @@ static void writeLogsSqlBoatLogs(const LogEntry* const logEntries, unsigned int 
 			continue;
 		}
 
+		if (SQLITE_OK != (src = sqlite3_bind_double(_sqlInsertStmtBoatLog, ++n, log->sunAngle)))
+		{
+			ERRLOG1("Failed to bind sun angle! sqlite rc=%d", src);
+			continue;
+		}
+
 
 		if (SQLITE_DONE != (src = sqlite3_step(_sqlInsertStmtBoatLog)))
 		{
@@ -1017,7 +1024,7 @@ static int setupSql(const char* sqliteDbFilename)
 	}
 
 
-	static const char* BOAT_LOG_INSERT_STMT_STR = "INSERT INTO BoatLog VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);";
+	static const char* BOAT_LOG_INSERT_STMT_STR = "INSERT INTO BoatLog VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);";
 	if (SQLITE_OK != (src = sqlite3_prepare_v2(_sql, BOAT_LOG_INSERT_STMT_STR, strlen(BOAT_LOG_INSERT_STMT_STR) + 1, &_sqlInsertStmtBoatLog, 0)))
 	{
 		ERRLOG1("Failed to prepare BoatLog insert statement. sqlite rc=%d", src);

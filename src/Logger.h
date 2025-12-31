@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2020-2024 ls4096 <ls4096@8bitbyte.ca>
+ * Copyright (C) 2020-2025 ls4096 <ls4096@8bitbyte.ca>
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Affero General Public License as published by
@@ -52,6 +52,9 @@ typedef struct
 
 	// Boat damage
 	double damage;
+
+	// Sun angle
+	double sunAngle;
 
 	// Sail area
 	double sailArea;
@@ -106,7 +109,7 @@ typedef struct
 } CelestialSightEntry;
 
 int Logger_init(const char* csvLoggerDir, const char* sqliteDbFilename);
-void Logger_fillLogEntry(Boat* boat, const char* name, time_t t, bool reportVisible, LogEntry* log);
+void Logger_fillLogEntry(Boat* boat, proteus_Weather* wx, const char* name, time_t t, bool reportVisible, LogEntry* log);
 void Logger_writeLogs(LogEntry* logEntries, unsigned int lCount, CelestialSightEntry* csEntries, unsigned int csCount);
 
 #endif // _Logger_h_

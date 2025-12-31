@@ -24,6 +24,7 @@
 #include <unistd.h>
 
 #include <proteus/proteus.h>
+#include <proteus/Celestial.h>
 #include <proteus/Compass.h>
 #include <proteus/GeoInfo.h>
 #include <proteus/GeoPos.h>
@@ -88,7 +89,7 @@
 #define PERF_TEST_MAX_BOAT_COUNT (819200)
 
 
-static const char* VERSION_STRING = "SailNavSim version 1.19.3 (" __DATE__ " " __TIME__ ")";
+static const char* VERSION_STRING = "SailNavSim version 1.20.0-dev (" __DATE__ " " __TIME__ ")";
 
 
 static int parseArgs(int argc, char** argv);
@@ -267,7 +268,7 @@ int main(int argc, char** argv)
 
 	for (;;)
 	{
-		time_t curTime = time(0);
+		const time_t curTime = time(0);
 
 		unsigned int boatCount;
 		void* iterator = sailnavsim_boatregistry_get_boats_iterator(BoatRegistry_registry(), &boatCount);
@@ -279,15 +280,11 @@ int main(int argc, char** argv)
 			// Log boat data once every ITERATIONS_PER_LOG iterations.
 			const int iter = (ITERATIONS_PER_LOG >= 2) ? (curTime % ITERATIONS_PER_LOG) : 1;
 
-			bool doLog = false;
-			if (!perfTest && (ITERATIONS_PER_LOG >= 2) && (iter < lastIter))
-			{
-				// Write boat logs if
-				//  1. this is not a performance test run, and
-				//  2. iterations per log is at least 2, and
-				//  3. iteration number (as computed above) has been "reset" to less than the value of the last iteration.
-				doLog = true;
-			}
+			// Write boat logs only if
+			//  1. this is not a performance test run, and
+			//  2. iterations per log is at least 2, and
+			//  3. iteration number (as computed above) has been "reset" to less than the value of the last iteration.
+			bool doLog = !perfTest && (ITERATIONS_PER_LOG >= 2) && (iter < lastIter);
 
 			lastIter = iter;
 
@@ -336,15 +333,47 @@ int main(int argc, char** argv)
 
 				if (doLog)
 				{
+					proteus_Weather wx;
+					proteus_Weather_get(&boat->pos, &wx, false);
+
+
+					proteus_CelestialEquatorialCoord ec;
+					proteus_CelestialHorizontalCoord hc;
+
+					const double jd = proteus_Celestial_getJulianDayForTime(curTime);
+
+					if (0 == proteus_Celestial_getEquatorialForObject(
+						jd,
+						PROTEUS_CELESTIAL_OBJ_SUN,
+						&ec))
+					{
+						if (0 == proteus_Celestial_convertEquatorialToHorizontal(
+							jd,
+							&boat->pos,
+							&ec,
+							true,
+							(double) wx.pressure,
+							(double) wx.temp,
+							&hc))
+						{
+							boat->sunAngle = hc.alt;
+						}
+					}
+
+
 					bool isReportVisible = true;
 
 					if ((boat->boatFlags & BOAT_FLAG_CELESTIAL))
 					{
 						// Boat is in celestial navigation mode.
-						proteus_Weather wx;
-						proteus_Weather_get(&boat->pos, &wx, false);
 
-						CelestialSight_shoot(curTime, &boat->pos, (int) roundf(wx.cloud), (double) wx.pressure, (double) wx.temp, sights + ilog);
+						CelestialSight_shoot(
+							curTime,
+							&boat->pos,
+							(int) roundf(wx.cloud),
+							(double) wx.pressure,
+							(double) wx.temp,
+							sights + ilog);
 
 						if (sights[ilog].obj >= 0)
 						{
@@ -383,7 +412,7 @@ int main(int argc, char** argv)
 						sights[ilog].obj = -1;
 					}
 
-					Logger_fillLogEntry(boat, e->name, curTime, isReportVisible, logEntries + ilog);
+					Logger_fillLogEntry(boat, &wx, e->name, curTime, isReportVisible, logEntries + ilog);
 
 					ilog++;
 				}

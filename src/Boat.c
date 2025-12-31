@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2020-2024 ls4096 <ls4096@8bitbyte.ca>
+ * Copyright (C) 2020-2025 ls4096 <ls4096@8bitbyte.ca>
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Affero General Public License as published by
@@ -76,6 +76,7 @@ Boat* Boat_new(double lat, double lon, int boatType, int boatFlags)
 	boat->desiredCourse = 0.0;
 	boat->distanceTravelled = 0.0;
 	boat->damage = 0.0;
+	boat->sunAngle = 0.0;
 
 	boat->boatType = boatType;
 	boat->boatFlags = boatFlags;
@@ -514,11 +515,11 @@ static void updateDamage(Boat* b, double windGust, double windAngle, bool takeDa
 
 	const double damageTakeThreshold = BoatWindResponse_getDamageWindGustThreshold(b->boatType);
 
-	if (windGust < DAMAGE_DECREASE_THRESHOLD)
+	if (b->damage > 0.0 && windGust < DAMAGE_DECREASE_THRESHOLD)
 	{
-		if (b->damage > 0.0)
+		// Repair damage if sun angle is positive or if "repair during daylight only" flag is unset.
+		if (b->sunAngle >= 0.0 || !(b->boatFlags & BOAT_FLAG_DAMAGE_REPAIR_DAY_ONLY))
 		{
-			// Repair damage.
 			b->damage -= ((DAMAGE_DECREASE_THRESHOLD - windGust) * DAMAGE_REPAIR_FACTOR);
 			if (b->damage < 0.0)
 			{
