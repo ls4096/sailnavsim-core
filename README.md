@@ -4,8 +4,12 @@ A global sailing navigation simulator, using real-world geographic information a
 
 ## Dependencies
 
+### Libraries
+
 - POSIX threads (pthread) library, with headers
 - SQLite3 library, with headers
+- [libproteus](https://github.com/ls4096/libproteus) library, with headers (referenced as git submodule)
+    - Can be cloned/initialized with `git submodule update --init`
 
 ### Build tools
 
@@ -15,8 +19,7 @@ A global sailing navigation simulator, using real-world geographic information a
 
 ### Tested build/run environments
 
-- Ubuntu 20.04, x86-64
-- Debian 10 (Buster), x86-64
+- GNU/Linux (various distros), x86-64
 
 ## How to build
 
