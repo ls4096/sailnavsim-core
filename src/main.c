@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2020-2025 ls4096 <ls4096@8bitbyte.ca>
+ * Copyright (C) 2020-2026 ls4096 <ls4096@8bitbyte.ca>
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Affero General Public License as published by
@@ -254,10 +254,19 @@ int main(int argc, char** argv)
 
 	int lastIter = 1;
 
+	// Used for performance measurements
 	int perfIter = 0;
 	int perfTestIterationsFactor = PERF_TEST_ITERATIONS_FACTOR_INIT;
 	long perfTotalNs = 0;
 	bool perfFirst = true;
+
+	// Some statistics for each logging interval
+	unsigned long cmdCountTotal = 0;
+	unsigned long sleepTimeTotal = 0;
+	long sleepTimeMin = 1000000000;
+	long sleepTimeMax = -sleepTimeMin;
+	unsigned int iterCount = 0;
+
 
 	struct timespec nextT;
 	if (0 != clock_gettime(CLOCK_MONOTONIC, &nextT))
@@ -265,6 +274,8 @@ int main(int argc, char** argv)
 		ERRLOG1("clock_gettime failed! errno=%d", errno);
 		return -1;
 	}
+
+	ERRLOG("Starting main loop.");
 
 	for (;;)
 	{
@@ -561,13 +572,12 @@ int main(int argc, char** argv)
 		}
 
 		// Handle pending commands.
-		unsigned int cmdCount = 0;
 		Command* cmd;
 		while ((cmd = Command_next()))
 		{
 			handleCommand(cmd);
 			Command_free(cmd);
-			cmdCount++;
+			cmdCountTotal++;
 		}
 
 		if (BoatRegistry_OK != BoatRegistry_unlock())
@@ -576,7 +586,7 @@ int main(int argc, char** argv)
 		}
 
 
-		// Next iteration 1 second later
+		// Next iteration 1 second after last iteration
 		nextT.tv_sec++;
 
 		struct timespec tp;
@@ -586,17 +596,42 @@ int main(int argc, char** argv)
 			return -1;
 		}
 
-		long sleepTime = (nextT.tv_sec * 1000000000 + nextT.tv_nsec) - (tp.tv_sec * 1000000000 + tp.tv_nsec);
+		const long sleepTime = (nextT.tv_sec * 1000000000 + nextT.tv_nsec) - (tp.tv_sec * 1000000000 + tp.tv_nsec);
+
+		sleepTimeTotal += (sleepTime / 1000);
+		if (sleepTime > sleepTimeMax)
+		{
+			sleepTimeMax = sleepTime;
+		}
+		if (sleepTime < sleepTimeMin)
+		{
+			sleepTimeMin = sleepTime;
+		}
+
+		if (++iterCount == ITERATIONS_PER_LOG)
+		{
+			ERRLOG5("Stats: boats=%u, cmds=%u, s_min=%lu, s_avg=%lu, s_max=%lu",
+				boatCount,
+				cmdCountTotal,
+				sleepTimeMin / 1000,
+				sleepTimeTotal / ITERATIONS_PER_LOG,
+				sleepTimeMax / 1000);
+
+			cmdCountTotal = 0;
+			sleepTimeTotal = 0;
+			sleepTimeMin = 1000000000;
+			sleepTimeMax = -sleepTimeMin;
+			iterCount = 0;
+		}
+
 		if (sleepTime < 1)
 		{
-			ERRLOG2("Iteration (b=%u, c=%u) fell behind. Starting next right away!", boatCount, cmdCount);
+			ERRLOG("Iteration fell behind. Starting next right away!");
 			continue;
 		}
 
 		struct timespec sleepT = { sleepTime / 1000000000, sleepTime % 1000000000 };
 		struct timespec remT;
-
-		ERRLOG3("Iter (b=%u, c=%u). Next in %ld us.", boatCount, cmdCount, sleepTime / 1000);
 
 		int rc;
 		while (0 != (rc = nanosleep(&sleepT, &remT)))

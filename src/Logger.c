@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2020-2025 ls4096 <ls4096@8bitbyte.ca>
+ * Copyright (C) 2020-2026 ls4096 <ls4096@8bitbyte.ca>
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Affero General Public License as published by
@@ -547,7 +547,7 @@ static void writeLogsSqlBoatLogs(const LogEntry* const logEntries, unsigned int 
 	int src;
 	unsigned int busyRetryCounter;
 
-	ERRLOG("About to begin BoatLogs DB transaction...");
+	ERRLOG("BoatLogs DB txn begin...");
 
 	busyRetryCounter = SQLITE_BUSY_RETRIES_MAX;
 	while (SQLITE_OK != (src = sqlite3_exec(_sql, "BEGIN IMMEDIATE TRANSACTION;", 0, 0, 0)))
@@ -564,8 +564,6 @@ static void writeLogsSqlBoatLogs(const LogEntry* const logEntries, unsigned int 
 			return;
 		}
 	}
-
-	ERRLOG("DB transaction started.");
 
 	for (unsigned int i = 0; i < lCount; i++)
 	{
@@ -872,21 +870,21 @@ static void writeLogsSqlBoatLogs(const LogEntry* const logEntries, unsigned int 
 		}
 	}
 
-	ERRLOG("Committed BoatLogs DB transaction.");
+	ERRLOG1("BoatLogs DB txn committed: %u", lCount);
 }
 
 static void writeLogsSqlCelestialSights(const CelestialSightEntry* const csEntries, unsigned int csCount)
 {
 	if (csCount == 0)
 	{
-		ERRLOG("No CelestialSights to write to DB.");
+		ERRLOG("CelestialSights: none.");
 		return;
 	}
 
 	int src;
 	unsigned int busyRetryCounter;
 
-	ERRLOG("About to begin CelestialSights DB transaction...");
+	ERRLOG("CelestialSights DB txn begin...");
 
 	busyRetryCounter = SQLITE_BUSY_RETRIES_MAX;
 	while (SQLITE_OK != (src = sqlite3_exec(_sql, "BEGIN IMMEDIATE TRANSACTION;", 0, 0, 0)))
@@ -903,8 +901,6 @@ static void writeLogsSqlCelestialSights(const CelestialSightEntry* const csEntri
 			return;
 		}
 	}
-
-	ERRLOG("DB transaction started.");
 
 	for (unsigned int i = 0; i < csCount; i++)
 	{
@@ -986,7 +982,7 @@ static void writeLogsSqlCelestialSights(const CelestialSightEntry* const csEntri
 		}
 	}
 
-	ERRLOG("Committed CelestialSights DB transaction.");
+	ERRLOG1("CelestialSights DB txn committed: %u", csCount);
 }
 
 static int setupSql(const char* sqliteDbFilename)
