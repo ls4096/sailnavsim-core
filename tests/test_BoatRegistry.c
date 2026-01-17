@@ -33,7 +33,7 @@ int test_BoatRegistry_runBasic()
 	void* iterator;
 	int rc;
 
-	rc = BoatRegistry_init();
+	rc = BoatRegistry_init(60);
 	EQUALS(rc, 0);
 
 
@@ -196,7 +196,7 @@ int test_BoatRegistry_runBasicWithGroups()
 	void* iterator;
 	int rc;
 
-	rc = BoatRegistry_init();
+	rc = BoatRegistry_init(120);
 	EQUALS(rc, 0);
 
 
@@ -381,7 +381,7 @@ int test_BoatRegistry_runLoad()
 	int removeOk = 0;
 	int removeNotExists = 0;
 
-	rc = BoatRegistry_init();
+	rc = BoatRegistry_init(600);
 	EQUALS(rc, 0);
 
 
@@ -618,7 +618,7 @@ int test_BoatRegistry_runLoadWithBigGroups()
 	int removeOk = 0;
 	int removeNotExists = 0;
 
-	rc = BoatRegistry_init();
+	rc = BoatRegistry_init(1000);
 	EQUALS(rc, 0);
 
 

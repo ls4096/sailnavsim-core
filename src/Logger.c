@@ -259,6 +259,7 @@ static void* loggerThreadMain()
 		if (0 != pthread_mutex_lock(&_logsLock))
 		{
 			ERRLOG("loggerThreadMain: Failed to lock logs mutex!");
+			sleep(1);
 			continue;
 		}
 

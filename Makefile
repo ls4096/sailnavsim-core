@@ -11,6 +11,7 @@ OBJS = \
 	src/CelestialSight.o \
 	src/Command.o \
 	src/ErrLog.o \
+	src/GeoInfoPreloader.o \
 	src/GeoUtils.o \
 	src/Logger.o \
 	src/NetServer.o \

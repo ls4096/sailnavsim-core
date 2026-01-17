@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2020-2024 ls4096 <ls4096@8bitbyte.ca>
+ * Copyright (C) 2020-2026 ls4096 <ls4096@8bitbyte.ca>
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Affero General Public License as published by
@@ -29,14 +29,22 @@
 static pthread_rwlock_t _lock = PTHREAD_RWLOCK_INITIALIZER;
 
 static void* _boatRegistry = 0;
+static unsigned int _iterMod = 0;
 
 
 static BoatEntry* findBoatEntry(const char* name);
 
 
-int BoatRegistry_init()
+int BoatRegistry_init(unsigned int iterMod)
 {
+	if (iterMod < 1)
+	{
+		return -2;
+	}
+
+	_iterMod = iterMod;
 	_boatRegistry = sailnavsim_boatregistry_new();
+
 	return (_boatRegistry ? 0 : -1);
 }
 
@@ -94,6 +102,17 @@ int BoatRegistry_add(Boat* boat, const char* name, const char* group, const char
 	}
 
 	newEntry->boat = boat;
+
+	// Assign an iteration for the boat for less frequent tasks. Use a hash (FNV) to spread the load.
+	const char* c = newEntry->name;
+	unsigned int h = 2166136261;
+	while (*c != 0)
+	{
+		h ^= (unsigned int)*c;
+		h *= 16777619;
+		c++;
+	}
+	newEntry->iter = h % _iterMod;
 
 	int rc;
 

@@ -43,6 +43,7 @@
 #include "CelestialSight.h"
 #include "Command.h"
 #include "ErrLog.h"
+#include "GeoInfoPreloader.h"
 #include "GeoUtils.h"
 #include "Logger.h"
 #include "NetServer.h"
@@ -98,6 +99,8 @@ static void printVersionInfo();
 static void handleCommand(Command* cmd);
 static void handleBoatRegistryCommand(Command* cmd);
 
+static void preloadGeoInfoTile(const Boat* boat, int ahead);
+
 static int _netPort = 0;
 static char* _netHost = 0;
 static int _netThreads = NETSERVER_DEFAULT_THREAD_COUNT;
@@ -140,7 +143,7 @@ int main(int argc, char** argv)
 	}
 
 
-	if (BoatRegistry_init() != 0)
+	if (BoatRegistry_init(ITERATIONS_PER_LOG) != 0)
 	{
 		ERRLOG("Failed to init boat registry!");
 		return -1;
@@ -231,6 +234,12 @@ int main(int argc, char** argv)
 	if (Logger_init(CSV_LOGGER_DIR, SQLITE_DB_FILENAME) != 0)
 	{
 		ERRLOG("Failed to init boat logger!");
+		return -1;
+	}
+
+	if (GeoInfoPreloader_init() != 0)
+	{
+		ERRLOG("Failed to init geo info tile preloader!");
 		return -1;
 	}
 
@@ -335,12 +344,19 @@ int main(int argc, char** argv)
 				ERRLOG("Failed to write-lock BoatRegistry lock for boat advance!");
 			}
 
-			// Advance boats.
+			// Advance all the boats, and maybe output boat logs.
 			BoatEntry* e = boats;
 			while (e)
 			{
 				Boat* boat = e->boat;
 				Boat_advance(boat, curTime);
+
+				// On the boat entry's assigned iteration, queue a possible preload of the likely upcoming
+				// GeoInfo tile to avoid doing this work on the main thread later.
+				if (e->iter == iter)
+				{
+					preloadGeoInfoTile(boat, 2 * ITERATIONS_PER_LOG);
+				}
 
 				if (doLog)
 				{
@@ -850,4 +866,15 @@ static void handleBoatRegistryCommand(Command* cmd)
 			break;
 		}
 	}
+}
+
+static void preloadGeoInfoTile(const Boat* boat, int ahead)
+{
+	proteus_GeoPos p = boat->pos;
+	proteus_GeoVec v = boat->vGround;
+
+	v.mag *= (double) ahead;
+	proteus_GeoPos_advance(&p, &v);
+
+	GeoInfoPreloader_addPosition(&p);
 }
