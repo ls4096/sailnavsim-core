@@ -261,7 +261,7 @@ int main(int argc, char** argv)
 	}
 
 
-	int lastIter = 1;
+	unsigned int lastIter = 1;
 
 	// Used for performance measurements
 	int perfIter = 0;
@@ -298,7 +298,7 @@ int main(int argc, char** argv)
 		if (boatCount > 0)
 		{
 			// Log boat data once every ITERATIONS_PER_LOG iterations.
-			const int iter = (ITERATIONS_PER_LOG >= 2) ? (curTime % ITERATIONS_PER_LOG) : 1;
+			const unsigned int iter = (ITERATIONS_PER_LOG >= 2) ? (curTime % ITERATIONS_PER_LOG) : 1;
 
 			// Write boat logs only if
 			//  1. this is not a performance test run, and

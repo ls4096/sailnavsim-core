@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2020 ls4096 <ls4096@8bitbyte.ca>
+ * Copyright (C) 2020-2026 ls4096 <ls4096@8bitbyte.ca>
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Affero General Public License as published by
@@ -20,6 +20,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
+#include <unistd.h>
 
 #define FMT_BUF_SIZE (4096)
 
@@ -30,16 +31,16 @@ void ErrLog_log(const char* id, const char* msg, ...)
 
 	char fmt[FMT_BUF_SIZE];
 
-	if (strlen(id) + strlen(msg) >= FMT_BUF_SIZE - 64)
+	if (strlen(id) + strlen(msg) >= FMT_BUF_SIZE - 96)
 	{
-		snprintf(fmt, FMT_BUF_SIZE, "[%ld.%03ld] %s: %s\n", ts.tv_sec, ts.tv_nsec / 1000000, id, "ERRLOG MESSAGE TOO LARGE!");
+		snprintf(fmt, FMT_BUF_SIZE, "[%ld.%03ld] [%u] %s: %s\n", ts.tv_sec, ts.tv_nsec / 1000000, gettid(), id, "ERRLOG MESSAGE TOO LARGE!");
 
 		fprintf(stderr, "%s", fmt);
 		return;
 	}
 	else
 	{
-		snprintf(fmt, FMT_BUF_SIZE, "[%ld.%03ld] %s: %s\n", ts.tv_sec, ts.tv_nsec / 1000000, id, msg);
+		snprintf(fmt, FMT_BUF_SIZE, "[%ld.%03ld] [%u] %s: %s\n", ts.tv_sec, ts.tv_nsec / 1000000, gettid(), id, msg);
 	}
 
 	va_list arg;
