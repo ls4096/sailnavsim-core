@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2021-2024 ls4096 <ls4096@8bitbyte.ca>
+ * Copyright (C) 2021-2026 ls4096 <ls4096@8bitbyte.ca>
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Affero General Public License as published by
@@ -128,7 +128,6 @@ static int queueAcceptedFd(int fd);
 
 static void* netServerWorkerThreadMain(void* arg);
 static int getNextFd();
-static void processConnection(unsigned int workerThreadId, int fd);
 
 static void incCounter(int ctr);
 static void incReqTypeCounter(int ctr);
@@ -567,7 +566,7 @@ static void* netServerWorkerThreadMain(void* arg)
 			break;
 		}
 
-		processConnection(workerThreadId, fd);
+		NetServer_processRequests(workerThreadId, fd);
 		close(fd);
 	}
 
@@ -614,7 +613,7 @@ done:
 	return fd;
 }
 
-static void processConnection(unsigned int workerThreadId, int fd)
+void NetServer_processRequests(unsigned int workerThreadId, int fd)
 {
 	char buf[RECV_MSG_BUF_SIZE];
 	buf[0] = 0;
@@ -843,8 +842,8 @@ static bool areValuesValidForReqType(int reqType, ReqValue values[REQ_MAX_ARG_CO
 
 static void populateWindResponse(char* buf, size_t bufSize, const proteus_GeoPos* pos, bool gust, bool adjustForCurrent)
 {
-	proteus_Weather wx;
-	proteus_Weather_get(pos, &wx, true);
+	proteus_Weather wx = { 0 };
+	const bool valid = proteus_Weather_get(pos, &wx, true);
 
 	double gustAngle = wx.wind.angle;
 
@@ -863,8 +862,8 @@ static void populateWindResponse(char* buf, size_t bufSize, const proteus_GeoPos
 				adjustForCurrent ? REQ_STR_GET_WIND_GUST_ADJCUR : REQ_STR_GET_WIND_GUST,
 				pos->lat,
 				pos->lon,
-				gustAngle,
-				wx.windGust);
+				valid ? gustAngle : INVALID_DOUBLE_VALUE,
+				valid ? wx.windGust : INVALID_DOUBLE_VALUE);
 	}
 	else
 	{
@@ -872,8 +871,8 @@ static void populateWindResponse(char* buf, size_t bufSize, const proteus_GeoPos
 				adjustForCurrent ? REQ_STR_GET_WIND_ADJCUR : REQ_STR_GET_WIND,
 				pos->lat,
 				pos->lon,
-				wx.wind.angle,
-				wx.wind.mag);
+				valid ? wx.wind.angle : INVALID_DOUBLE_VALUE,
+				valid ? wx.wind.mag : INVALID_DOUBLE_VALUE);
 	}
 }
 

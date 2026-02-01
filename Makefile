@@ -20,6 +20,7 @@ OBJS = \
 
 TESTS_OBJS = \
 	tests/test_BoatRegistry.o \
+	tests/test_NetServer.o \
 	tests/test_WxUtils.o
 
 LIBPROTEUS_A = libproteus/libproteus.a
