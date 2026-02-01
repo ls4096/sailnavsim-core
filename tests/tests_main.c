@@ -55,7 +55,7 @@ int main()
 
 		if (0 != (testres = TEST_FUNCS[i]()))
 		{
-			printf("\tFAILED!\n");
+			printf("\t\033[31mFAILED!\033[0m\n");
 		}
 		else
 		{
@@ -67,11 +67,11 @@ int main()
 
 	if (sum == 0)
 	{
-		printf("All tests passed!\n");
+		printf("\033[32mAll tests passed!\033[0m\n");
 	}
 	else
 	{
-		printf("There were test failures!\n");
+		printf("\033[31mThere were test failures!\033[0m\n");
 	}
 
 	return sum;
