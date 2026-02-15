@@ -14,6 +14,7 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <poll.h>
 #include <pthread.h>
 #include <stdlib.h>
 #include <string.h>
@@ -105,6 +106,8 @@ static int finishRequestProcessor(RequestProcessorCtx* ctx)
 	return 0;
 }
 
+#define READ_BUF_SIZE (128 * 1024)
+
 int performAllRequests(WritePatternType wpt)
 {
 	RequestProcessorCtx ctx;
@@ -163,13 +166,24 @@ int performAllRequests(WritePatternType wpt)
 
 	EQUALS(0, requestAndCheckResponse("bd,name1,\nbd_nc,name2,\nbd,name3,\nbd,name4,\nbd,name5,\nbd,name6,\nbd,name7,\nbd_nc,name8,\n", "bd,name1,noboat\nbd_nc,name2,noboat\nbd,name3,noboat\nbd,name4,noboat\nbd,name5,noboat\nbd,name6,noboat\nbd,name7,noboat\nbd_nc,name8,noboat\n", ctx.clientFd, wpt));
 
+	// Send a very long list of concatenated request messages.
+	char reqBuf[READ_BUF_SIZE];
+	char respBuf[READ_BUF_SIZE];
+	int reqN = 0;
+	int respN = 0;
+	for (int i = 0; i < READ_BUF_SIZE / 60; i++)
+	{
+		reqN += sprintf(reqBuf + reqN, "wind,10.%06d,11.%06d\n", i, i);
+		respN += sprintf(respBuf + respN, "wind,10.%06d,11.%06d,-999.000000,-999.000000\n", i, i);
+	}
+	EQUALS(0, requestAndCheckResponse(reqBuf, respBuf, ctx.clientFd, wpt));
+
 	EQUALS(0, finishRequestProcessor(&ctx));
 
 
 	return 0;
 }
 
-#define READ_BUF_SIZE (64 * 1024)
 #define SLEEP_US (5000)
 
 static int requestAndCheckResponse(const char* req, const char* resp, int fd, WritePatternType wpt)
@@ -177,34 +191,52 @@ static int requestAndCheckResponse(const char* req, const char* resp, int fd, Wr
 	const ssize_t toWrite = strlen(req);
 	const ssize_t toRead = strlen(resp);
 
-	ssize_t written = 0;
-	while (written < toWrite)
+	ssize_t writtenBytes = 0;
+	ssize_t readBytes = 0;
+
+	char readBuf[READ_BUF_SIZE] = { 0 };
+
+	while (writtenBytes < toWrite)
 	{
 		size_t thisWrite;
 		bool doSleep = false;
 		switch (wpt)
 		{
 		case WPT_NORMAL:
-			thisWrite = toWrite - written;
+			thisWrite = toWrite - writtenBytes;
 			break;
 		case WPT_ONE_BYTE:
 			thisWrite = 1;
 			break;
 		case WPT_RANDOM:
-			thisWrite = getRandInt(toWrite - written - 1) + 1;
+			thisWrite = getRandInt(toWrite - writtenBytes - 1) + 1;
 			break;
 		case WPT_RANDOM_WITH_SLEEP:
 			doSleep = true;
-			thisWrite = getRandInt(toWrite - written - 1) + 1;
+			thisWrite = getRandInt(toWrite - writtenBytes - 1) + 1;
 			break;
 		default:
-			thisWrite = toWrite - written;
+			thisWrite = toWrite - writtenBytes;
 			break;
 		}
 
-		ssize_t wb = write(fd, req + written, thisWrite);
+		struct pollfd pfd = { .fd = fd, .events = POLLOUT, .revents = 0 };
+		if (0 == poll(&pfd, 1, 0)) {
+			// Can't write right now, so read some instead...
+			ssize_t rb = read(fd, readBuf + readBytes, READ_BUF_SIZE - readBytes);
+			IS_TRUE(rb >= 0);
+			readBytes += rb;
+
+			if (readBytes >= toRead)
+			{
+				IS_TRUE(0 == memcmp(resp, readBuf, toRead));
+				return 0;
+			}
+		}
+
+		ssize_t wb = write(fd, req + writtenBytes, thisWrite);
 		IS_TRUE(wb > 0);
-		written += wb;
+		writtenBytes += wb;
 
 		if (doSleep)
 		{
@@ -212,18 +244,15 @@ static int requestAndCheckResponse(const char* req, const char* resp, int fd, Wr
 		}
 	}
 
-	char buf[READ_BUF_SIZE] = { 0 };
-
-	ssize_t readBytes = 0;
 	for (;;)
 	{
-		ssize_t rb = read(fd, buf + readBytes, READ_BUF_SIZE - readBytes);
+		ssize_t rb = read(fd, readBuf + readBytes, READ_BUF_SIZE - readBytes);
 		IS_TRUE(rb >= 0);
 		readBytes += rb;
 
 		if (readBytes >= toRead)
 		{
-			IS_TRUE(0 == memcmp(resp, buf, toRead));
+			IS_TRUE(0 == memcmp(resp, readBuf, toRead));
 			return 0;
 		}
 	}

@@ -96,7 +96,10 @@ typedef union
 } ReqValue;
 
 
-#define RECV_MSG_BUF_SIZE (1024)
+// Needs to be able to contain the largest valid request message
+#define RECV_MSG_BUF_SIZE (4 * 1024)
+
+// Needs to be able to contain the largest valid response message
 #define SEND_MSG_BUF_SIZE (64 * 1024)
 
 
@@ -318,6 +321,114 @@ fail:
 	}
 
 	return -1;
+}
+
+void NetServer_processRequests(unsigned int workerThreadId, int fd)
+{
+	char buf[RECV_MSG_BUF_SIZE];
+	buf[0] = 0;
+
+	// Number of bytes in incoming buffer ready for message parsing/processing
+	int readyBytes = 0;
+
+	// End of read stream indicator
+	bool eos = false;
+
+	// Request read loop
+	for (;;)
+	{
+		// Number of new bytes (from read())
+		int newBytes = 0;
+
+		if (!eos)
+		{
+			// Not the end of the request stream yet, so maybe read more data...
+
+			if (readyBytes == RECV_MSG_BUF_SIZE)
+			{
+				// We've encountered a request message that doesn't fit inside the buffer.
+				ERRLOG1("worker%u: Excessive message length!", workerThreadId);
+				incCounter(COUNTER_DATA_TOO_LONG);
+				return;
+			}
+
+			newBytes = read(fd, buf + readyBytes, RECV_MSG_BUF_SIZE - readyBytes);
+			incCounter(COUNTER_READ);
+
+			if (newBytes < 0)
+			{
+				ERRLOG3("worker%u: Failed read (rc=%d)! errno=%d", workerThreadId, newBytes, errno);
+				incCounter(COUNTER_READ_FAIL);
+				return;
+			}
+			else if (newBytes == 0)
+			{
+				// We've reached the end of the stream.
+				eos = true;
+			}
+		}
+
+		readyBytes += newBytes;
+
+		char* buf2 = buf;
+		int msgsLenTotal = 0;
+
+		// Request message handler loop
+		for (;;)
+		{
+			// Find the end of the next request message string.
+			int msgLen = 0;
+			bool foundNewline = false;
+			const int maxMsgLen = readyBytes - msgsLenTotal;
+			for (const char* s = buf2; *s != 0 && msgLen < maxMsgLen; s++)
+			{
+				msgLen++;
+				if (*s == '\n')
+				{
+					foundNewline = true;
+					break;
+				}
+			}
+
+			if (!foundNewline)
+			{
+				// Didn't find newline in buffer.
+				if (eos)
+				{
+					// End of request stream anyway, so we're done.
+					return;
+				}
+				else
+				{
+					// Not end of request stream yet, so keep trying to read.
+					break;
+				}
+			}
+
+			// Replace message-terminating newline in buffer with null byte.
+			buf2[msgLen - 1] = 0;
+
+			// Handle the request message.
+			incCounter(COUNTER_MESSAGE);
+			if (NetServer_handleRequest(fd, buf2) != 0)
+			{
+				ERRLOG1("worker%u: Failed to handle request!", workerThreadId);
+				incCounter(COUNTER_MESSAGE_FAIL);
+				return;
+			}
+
+			msgsLenTotal += msgLen;
+			buf2 += msgLen;
+		}
+
+		// Move start of next (unfinished) message data to start of buffer.
+		// NOTE: memmove() allows source and destination buffers to overlap.
+		if (msgsLenTotal > 0 && readyBytes > msgsLenTotal)
+		{
+			memmove(buf, buf2, readyBytes - msgsLenTotal);
+		}
+		readyBytes -= msgsLenTotal;
+	}
 }
 
 
@@ -613,121 +724,6 @@ done:
 	return fd;
 }
 
-void NetServer_processRequests(unsigned int workerThreadId, int fd)
-{
-	char buf[RECV_MSG_BUF_SIZE];
-	buf[0] = 0;
-
-	// Number of bytes in read buffer ready for message parsing/processing
-	int readyBytes = 0;
-
-	// End of read stream indicator
-	bool eos = false;
-
-	// Request loop
-	for (;;)
-	{
-		int rb = 0;
-
-		if (readyBytes == RECV_MSG_BUF_SIZE)
-		{
-			// We've encountered a request message that doesn't fit inside the buffer.
-			ERRLOG1("worker%u: Excessive message length!", workerThreadId);
-			incCounter(COUNTER_DATA_TOO_LONG);
-
-			break;
-		}
-
-		if (!eos)
-		{
-			// Not the end of the request stream yet, so possibly try to read more data...
-
-			fd_set rfds;
-			FD_ZERO(&rfds);
-			FD_SET(fd, &rfds);
-			struct timeval tv = { .tv_sec = 0, .tv_usec = 0 };
-
-			// Attempt to read from the fd if either of the following conditions is true:
-			// 	1. select() tells us the fd has data ready for read.
-			// 	2. We have no more request bytes to process for messages in our local buffer.
-			if (select(fd + 1, &rfds, 0, 0, &tv) != 0 || readyBytes == 0)
-			{
-				// Read from the fd.
-				rb = read(fd, buf + readyBytes, RECV_MSG_BUF_SIZE - readyBytes);
-				incCounter(COUNTER_READ);
-
-				if (rb < 0)
-				{
-					ERRLOG2("worker%u: Failed read! errno=%d", workerThreadId, errno);
-					incCounter(COUNTER_READ_FAIL);
-
-					break;
-				}
-				else if (rb == 0)
-				{
-					// End of stream.
-					eos = true;
-				}
-			}
-		}
-
-		// Find the end of the next request message string.
-		int i = 0;
-		bool foundNewline = false;
-		for (const char* s = buf; *s != 0 && i < rb + readyBytes; s++)
-		{
-			i++;
-			if (*s == '\n')
-			{
-				foundNewline = true;
-				break;
-			}
-		}
-
-		readyBytes += rb;
-
-		if (!foundNewline)
-		{
-			// Didn't find newline in buffer.
-			if (eos)
-			{
-				// End of request stream, so break out of request loop.
-				break;
-			}
-			else
-			{
-				// Not end of request stream, so keep trying to read.
-				continue;
-			}
-		}
-		foundNewline = false;
-
-		// Replace newline in buffer with null terminator.
-		buf[i - 1] = 0;
-
-		// Handle the request message.
-		incCounter(COUNTER_MESSAGE);
-		if (NetServer_handleRequest(fd, buf) != 0)
-		{
-			ERRLOG1("worker%u: Failed to handle request!", workerThreadId);
-			incCounter(COUNTER_MESSAGE_FAIL);
-
-			break;
-		}
-
-		// Move start of next message data to start of buffer.
-		// NOTE: memmove() allows source and destination buffers to overlap.
-		memmove(buf, buf + i, RECV_MSG_BUF_SIZE - i);
-		readyBytes -= i;
-
-		if (eos && readyBytes == 0)
-		{
-			// End of stream, and no more bytes to process.
-			break;
-		}
-	}
-}
-
 static void incCounter(int ctr)
 {
 	_counter[ctr].u64++;
@@ -837,7 +833,6 @@ static bool areValuesValidForReqType(int reqType, ReqValue values[REQ_MAX_ARG_CO
 	return true;
 }
 
-#define INVALID_INTEGER_VALUE (-999)
 #define INVALID_DOUBLE_VALUE (-999.0)
 
 static void populateWindResponse(char* buf, size_t bufSize, const proteus_GeoPos* pos, bool gust, bool adjustForCurrent)
