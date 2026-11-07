@@ -24,6 +24,7 @@
 #include <unistd.h>
 
 #include <proteus/proteus.h>
+#include <proteus/BackgroundWorker.h>
 #include <proteus/Celestial.h>
 #include <proteus/Compass.h>
 #include <proteus/GeoInfo.h>
@@ -60,6 +61,9 @@
 #define NETSERVER_DEFAULT_THREAD_COUNT (5)
 #define NETSERVER_MAX_THREAD_COUNT (10000)
 
+#define BGWORKER_MAX_JOBS (10)
+#define BGWORKER_SECONDS_PER_ITER (60)
+
 
 #define WX_DATA_DIR_PATH_F006 "wx_data_f006/"
 #define WX_DATA_DIR_PATH_F009 "wx_data_f009/"
@@ -90,7 +94,7 @@
 #define PERF_TEST_MAX_BOAT_COUNT (819200)
 
 
-static const char* VERSION_STRING = "SailNavSim version 1.20.0 (" __DATE__ " " __TIME__ ")";
+static const char* VERSION_STRING = "SailNavSim version 1.20.1 (" __DATE__ " " __TIME__ ")";
 
 
 static int parseArgs(int argc, char** argv);
@@ -183,25 +187,31 @@ int main(int argc, char** argv)
 		return -1;
 	}
 
-	if (proteus_Weather_init(PROTEUS_WEATHER_SOURCE_DATA_GRID_1P00, WX_DATA_DIR_PATH_F006, WX_DATA_DIR_PATH_F009) != 0)
+	if (proteus_BackgroundWorker_init(BGWORKER_MAX_JOBS, BGWORKER_SECONDS_PER_ITER) != 0)
+	{
+		ERRLOG("Failed to init bgworker!");
+		return -1;
+	}
+
+	if (proteus_Weather_init(PROTEUS_WEATHER_SOURCE_DATA_GRID_1P00, WX_DATA_DIR_PATH_F006, WX_DATA_DIR_PATH_F009, true) != 0)
 	{
 		ERRLOG("Failed to init weather!");
 		return -1;
 	}
 
-	if (proteus_Ocean_init(OCEAN_DATA_PATH_T030, OCEAN_DATA_PATH_T042) != 0)
+	if (proteus_Ocean_init(OCEAN_DATA_PATH_T030, OCEAN_DATA_PATH_T042, true) != 0)
 	{
 		ERRLOG("Failed to init ocean data!");
 		return -1;
 	}
 
-	if (proteus_Wave_init(WAVE_DATA_PATH_F30, WAVE_DATA_PATH_F42) != 0)
+	if (proteus_Wave_init(WAVE_DATA_PATH_F30, WAVE_DATA_PATH_F42, true) != 0)
 	{
 		ERRLOG("Failed to init wave data!");
 		return -1;
 	}
 
-	if (proteus_GeoInfo_init(GEO_INFO_DATA_DIR_PATH) != 0)
+	if (proteus_GeoInfo_init(GEO_INFO_DATA_DIR_PATH, true) != 0)
 	{
 		ERRLOG("Failed to init geographic info!");
 		return -1;
@@ -494,8 +504,8 @@ int main(int argc, char** argv)
 
 			if (perfIter == 0)
 			{
-				void* iterator = sailnavsim_boatregistry_get_boats_iterator(BoatRegistry_registry(), &currentBoatCount);
-				sailnavsim_boatregistry_free_boats_iterator(iterator);
+				void* bi = sailnavsim_boatregistry_get_boats_iterator(BoatRegistry_registry(), &currentBoatCount);
+				sailnavsim_boatregistry_free_boats_iterator(bi);
 
 				if (perfFirst)
 				{
@@ -530,8 +540,8 @@ int main(int argc, char** argv)
 				if (perfIter >= (PERF_TEST_ITERATIONS_WARMUP + PERF_TEST_ITERATIONS_MEASURE) * perfTestIterationsFactor)
 				{
 					// We're done this set, so print result and proceed to next set of iterations.
-					void* iterator = sailnavsim_boatregistry_get_boats_iterator(BoatRegistry_registry(), &currentBoatCount);
-					sailnavsim_boatregistry_free_boats_iterator(iterator);
+					void* bi = sailnavsim_boatregistry_get_boats_iterator(BoatRegistry_registry(), &currentBoatCount);
+					sailnavsim_boatregistry_free_boats_iterator(bi);
 
 					const long bips = PERF_TEST_ITERATIONS_MEASURE * perfTestIterationsFactor * currentBoatCount * 1000000000L / perfTotalNs;
 

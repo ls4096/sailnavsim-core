@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2020-2025 ls4096 <ls4096@8bitbyte.ca>
+ * Copyright (C) 2020-2026 ls4096 <ls4096@8bitbyte.ca>
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Affero General Public License as published by
@@ -166,16 +166,16 @@ static BoatInitEntry* getNextSql()
 		}
 		else if (src == SQLITE_ROW)
 		{
-			int n = 0;
+			int i = 0;
 
-			const char* boatName = (const char*) sqlite3_column_text(_sqlStmtBoat, n++);
-			const char* race = (const char*) sqlite3_column_text(_sqlStmtBoat, n++);
-			const double desiredCourse = sqlite3_column_double(_sqlStmtBoat, n++);
-			const int started = sqlite3_column_int(_sqlStmtBoat, n++);
-			const int boatType = sqlite3_column_int(_sqlStmtBoat, n++);
-			const int boatFlags = sqlite3_column_int(_sqlStmtBoat, n++);
-			const char* boatFriendlyName = (const char*) sqlite3_column_text(_sqlStmtBoat, n++);
-			const double sailArea = sqlite3_column_double(_sqlStmtBoat, n++);
+			const char* boatName = (const char*) sqlite3_column_text(_sqlStmtBoat, i++);
+			const char* race = (const char*) sqlite3_column_text(_sqlStmtBoat, i++);
+			const double desiredCourse = sqlite3_column_double(_sqlStmtBoat, i++);
+			const int started = sqlite3_column_int(_sqlStmtBoat, i++);
+			const int boatType = sqlite3_column_int(_sqlStmtBoat, i++);
+			const int boatFlags = sqlite3_column_int(_sqlStmtBoat, i++);
+			const char* boatFriendlyName = (const char*) sqlite3_column_text(_sqlStmtBoat, i++);
+			const double sailArea = sqlite3_column_double(_sqlStmtBoat, i++);
 
 			src = sqlite3_reset(_sqlStmtBoatLog);
 			if (src != SQLITE_OK)
@@ -194,19 +194,19 @@ static BoatInitEntry* getNextSql()
 			src = sqlite3_step(_sqlStmtBoatLog);
 			if (src == SQLITE_ROW)
 			{
-				int n = 0;
+				int j = 0;
 
-				const double lat = sqlite3_column_double(_sqlStmtBoatLog, n++);
-				const double lon = sqlite3_column_double(_sqlStmtBoatLog, n++);
-				const double course = sqlite3_column_double(_sqlStmtBoatLog, n++);
-				const double speed = sqlite3_column_double(_sqlStmtBoatLog, n++);
-				const int boatStatus = sqlite3_column_int(_sqlStmtBoatLog, n++);
-				const int boatLocation = sqlite3_column_int(_sqlStmtBoatLog, n++);
-				const double distanceTravelled = sqlite3_column_double(_sqlStmtBoatLog, n++);
-				const double damage = sqlite3_column_double(_sqlStmtBoatLog, n++);
-				const double leewaySpeed = sqlite3_column_double(_sqlStmtBoatLog, n++);
-				const double heelingAngle = sqlite3_column_double(_sqlStmtBoatLog, n++);
-				const double sunAngle = sqlite3_column_double(_sqlStmtBoatLog, n++);
+				const double lat = sqlite3_column_double(_sqlStmtBoatLog, j++);
+				const double lon = sqlite3_column_double(_sqlStmtBoatLog, j++);
+				const double course = sqlite3_column_double(_sqlStmtBoatLog, j++);
+				const double speed = sqlite3_column_double(_sqlStmtBoatLog, j++);
+				const int boatStatus = sqlite3_column_int(_sqlStmtBoatLog, j++);
+				const int boatLocation = sqlite3_column_int(_sqlStmtBoatLog, j++);
+				const double distanceTravelled = sqlite3_column_double(_sqlStmtBoatLog, j++);
+				const double damage = sqlite3_column_double(_sqlStmtBoatLog, j++);
+				const double leewaySpeed = sqlite3_column_double(_sqlStmtBoatLog, j++);
+				const double heelingAngle = sqlite3_column_double(_sqlStmtBoatLog, j++);
+				const double sunAngle = sqlite3_column_double(_sqlStmtBoatLog, j++);
 
 				BoatInitEntry* entry = malloc(sizeof(BoatInitEntry));
 				if (!entry)

@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2020-2025 ls4096 <ls4096@8bitbyte.ca>
+ * Copyright (C) 2020-2026 ls4096 <ls4096@8bitbyte.ca>
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Affero General Public License as published by
@@ -23,13 +23,13 @@
 #include <proteus/GeoPos.h>
 
 
-#define BOAT_FLAG_TAKES_DAMAGE			(0x0001)
-#define BOAT_FLAG_WAVE_SPEED_EFFECT		(0x0002)
-#define BOAT_FLAG_CELESTIAL			(0x0004)
-#define BOAT_FLAG_CELESTIAL_WAVE_EFFECT		(0x0008)
-#define BOAT_FLAG_DAMAGE_APPARENT_WIND		(0x0010)
-#define BOAT_FLAG_LIVE_SHARING_HIDDEN		(0x0020)
-#define BOAT_FLAG_DAMAGE_REPAIR_DAY_ONLY	(0x0040)
+#define BOAT_FLAG_TAKES_DAMAGE			(1)
+#define BOAT_FLAG_WAVE_SPEED_EFFECT		(1 << 1)
+#define BOAT_FLAG_CELESTIAL			(1 << 2)
+#define BOAT_FLAG_CELESTIAL_WAVE_EFFECT		(1 << 3)
+#define BOAT_FLAG_DAMAGE_APPARENT_WIND		(1 << 4)
+#define BOAT_FLAG_LIVE_SHARING_HIDDEN		(1 << 5)
+#define BOAT_FLAG_DAMAGE_REPAIR_DAY_ONLY	(1 << 6)
 
 
 typedef struct

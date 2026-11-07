@@ -329,7 +329,7 @@ void NetServer_processRequests(unsigned int workerThreadId, int fd)
 	buf[0] = 0;
 
 	// Number of bytes in incoming buffer ready for message parsing/processing
-	int readyBytes = 0;
+	size_t readyBytes = 0;
 
 	// End of read stream indicator
 	bool eos = false;
@@ -371,16 +371,16 @@ void NetServer_processRequests(unsigned int workerThreadId, int fd)
 		readyBytes += newBytes;
 
 		char* buf2 = buf;
-		int msgsLenTotal = 0;
+		size_t msgsLenTotal = 0;
 
 		// Request message handler loop
 		for (;;)
 		{
 			// Find the end of the next request message string.
-			int msgLen = 0;
+			size_t msgLen = 0;
 			bool foundNewline = false;
-			const int maxMsgLen = readyBytes - msgsLenTotal;
-			for (const char* s = buf2; *s != 0 && msgLen < maxMsgLen; s++)
+			const size_t maxMsgLen = readyBytes - msgsLenTotal;
+			for (const char* s = buf2; msgLen < maxMsgLen && *s != 0; s++)
 			{
 				msgLen++;
 				if (*s == '\n')
@@ -921,8 +921,8 @@ static void populateBoatDataResponse(char* buf, size_t bufSize, const char* key,
 	proteus_GeoPos pos;
 	proteus_GeoVec v;
 	proteus_GeoVec vGround;
-	double leewaySpeed;
-	double heelingAngle;
+	double leewaySpeed = 0.0;
+	double heelingAngle = 0.0;
 
 	if (boat)
 	{
